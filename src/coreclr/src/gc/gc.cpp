@@ -14329,9 +14329,12 @@ try_again:
                     int actual_start = start;
                     int actual_end = (end - 1);
 
-                    for (int i = start; i < end; i++)
+                    int count = end - start;
+                    const int max_tries = 4;
+                    for (int i = 0; i < max_tries; i++)
                     {
-                        gc_heap* hp = GCHeap::GetHeap (i % n_heaps)->pGenGCHeap;
+                        int heap_num = start + (acontext->alloc_count + new_home_hp->heap_number + i) % count;
+                        gc_heap* hp = GCHeap::GetHeap (heap_num % n_heaps)->pGenGCHeap;
                         dd = hp->dynamic_data_of (0);
                         ptrdiff_t size = dd_new_allocation (dd);
 
