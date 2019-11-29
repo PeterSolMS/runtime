@@ -14236,10 +14236,6 @@ void gc_heap::balance_heaps (alloc_context* acontext)
             }
             else if ((acontext->alloc_count & 15) == 0)
                 set_home_heap = TRUE;
-
-            if (set_home_heap)
-            {
-            }
         }
         else
         {
@@ -14330,10 +14326,10 @@ try_again:
                     int actual_end = (end - 1);
 
                     int count = end - start;
-                    const int max_tries = 4;
+                    const int max_tries = 2;
                     for (int i = 0; i < max_tries; i++)
                     {
-                        int heap_num = start + (acontext->alloc_count + new_home_hp->heap_number + i) % count;
+                        int heap_num = start + ((acontext->alloc_count >> 4) + new_home_hp->heap_number + i) % count;
                         gc_heap* hp = GCHeap::GetHeap (heap_num % n_heaps)->pGenGCHeap;
                         dd = hp->dynamic_data_of (0);
                         ptrdiff_t size = dd_new_allocation (dd);
@@ -14342,6 +14338,12 @@ try_again:
                         {
                             size = size + delta;
                         }
+
+                        // if the size is not bigger than what we already have,
+                        // give up immediately, as it can't be a winner...
+                        if (size <= max_size)
+                            continue;
+
                         int hp_alloc_context_count = hp->alloc_context_count;
 
                         if (hp_alloc_context_count > 0)
