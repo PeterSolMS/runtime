@@ -14326,7 +14326,7 @@ try_again:
                     int actual_end = (end - 1);
 
                     int count = end - start;
-                    const int max_tries = 2;
+                    int max_tries = max(count, 4);
                     for (int i = 0; i < max_tries; i++)
                     {
                         int heap_num = start + ((acontext->alloc_count >> 4) + new_home_hp->heap_number + i) % count;
