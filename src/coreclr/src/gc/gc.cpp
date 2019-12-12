@@ -5159,7 +5159,9 @@ public:
     static uint16_t heap_no_to_proc_no[MAX_SUPPORTED_CPUS];
     static uint16_t heap_no_to_numa_node[MAX_SUPPORTED_CPUS];
     static uint16_t proc_no_to_numa_node[MAX_SUPPORTED_CPUS];
-    static uint16_t numa_node_to_heap_map[MAX_SUPPORTED_CPUS+4];
+    static uint16_t numa_node_to_heap_start[MAX_SUPPORTED_CPUS + 4];
+    static uint16_t numa_node_to_heap_end[MAX_SUPPORTED_CPUS + 4];
+
     // Note this is the total numa nodes GC heaps are on. There might be
     // more on the machine if GC threads aren't using all of them.
     static uint16_t total_numa_nodes;
@@ -5310,10 +5312,10 @@ public:
     {
         // Called right after GCHeap::Init() for each heap
         // For each NUMA node used by the heaps, the
-        // numa_node_to_heap_map[numa_node] is set to the first heap number on that node and
-        // numa_node_to_heap_map[numa_node + 1] is set to the first heap number not on that node
+        // numa_node_to_heap_start[numa_node] is set to the first heap number on that node and
+        // numa_node_to_heap_last[numa_node] is set to the first heap number not on that node
         // Set the start of the heap number range for the first NUMA node
-        numa_node_to_heap_map[heap_no_to_numa_node[0]] = 0;
+        numa_node_to_heap_start[heap_no_to_numa_node[0]] = 0;
         total_numa_nodes = 0;
         memset (heaps_on_node, 0, sizeof (heaps_on_node));
         heaps_on_node[0].node_no = heap_no_to_numa_node[0];
@@ -5327,15 +5329,15 @@ public:
                 heaps_on_node[total_numa_nodes].node_no = heap_no_to_numa_node[i];
 
                 // Set the end of the heap number range for the previous NUMA node
-                numa_node_to_heap_map[heap_no_to_numa_node[i-1] + 1] =
+                numa_node_to_heap_end[heap_no_to_numa_node[i-1]] =
                 // Set the start of the heap number range for the current NUMA node
-                numa_node_to_heap_map[heap_no_to_numa_node[i]] = (uint16_t)i;
+                numa_node_to_heap_start[heap_no_to_numa_node[i]] = (uint16_t)i;
             }
             (heaps_on_node[total_numa_nodes].heap_count)++;
         }
 
         // Set the end of the heap range for the last NUMA node
-        numa_node_to_heap_map[heap_no_to_numa_node[nheaps-1] + 1] = (uint16_t)nheaps; //mark the end with nheaps
+        numa_node_to_heap_end[heap_no_to_numa_node[nheaps-1]] = (uint16_t)nheaps; //mark the end with nheaps
         total_numa_nodes++;
     }
 
@@ -5365,8 +5367,8 @@ public:
             if (!GCToOSInterface::GetProcessorForHeap (i, &proc_no, &node_no))
                 break;
 
-            int start_heap = (int)numa_node_to_heap_map[node_no];
-            int end_heap = (int)(numa_node_to_heap_map[node_no + 1]);
+            int start_heap = (int)numa_node_to_heap_start[node_no];
+            int end_heap = (int)(numa_node_to_heap_end[node_no]);
 
             if ((end_heap - start_heap) > 0)
             {
@@ -5396,8 +5398,11 @@ public:
     static void get_heap_range_for_heap(int hn, int* start, int* end)
     {
         uint16_t numa_node = heap_no_to_numa_node[hn];
-        *start = (int)numa_node_to_heap_map[numa_node];
-        *end   = (int)(numa_node_to_heap_map[numa_node+1]);
+        *start = (int)numa_node_to_heap_start[numa_node];
+        *end   = (int)(numa_node_to_heap_end[numa_node]);
+#ifdef HEAP_BALANCE_INSTRUMENTATION
+        dprintf(HEAP_BALANCE_TEMP_LOG, ("TEMPget_heap_range: %d is in numa node %d, start = %d, end = %d", hn, numa_node, *start, *end));
+#endif //HEAP_BALANCE_INSTRUMENTATION
     }
 
     // This gets the next valid numa node index starting at current_index+1.
@@ -5412,8 +5417,8 @@ public:
         bool found_node_with_heaps_p = false;
         do
         {
-            int start_heap = (int)numa_node_to_heap_map[start_index];
-            int end_heap = (int)numa_node_to_heap_map[start_index + 1];
+            int start_heap = (int)numa_node_to_heap_start[start_index];
+            int end_heap = (int)numa_node_to_heap_end[start_index];
             if (start_heap == nheaps)
             {
                 // This is the last node.
@@ -5444,7 +5449,8 @@ uint16_t heap_select::proc_no_to_heap_no[MAX_SUPPORTED_CPUS];
 uint16_t heap_select::heap_no_to_proc_no[MAX_SUPPORTED_CPUS];
 uint16_t heap_select::heap_no_to_numa_node[MAX_SUPPORTED_CPUS];
 uint16_t heap_select::proc_no_to_numa_node[MAX_SUPPORTED_CPUS];
-uint16_t heap_select::numa_node_to_heap_map[MAX_SUPPORTED_CPUS+4];
+uint16_t heap_select::numa_node_to_heap_start[MAX_SUPPORTED_CPUS + 4];
+uint16_t heap_select::numa_node_to_heap_end[MAX_SUPPORTED_CPUS + 4];
 uint16_t  heap_select::total_numa_nodes;
 node_heap_count heap_select::heaps_on_node[MAX_SUPPORTED_NODES];
 
@@ -14326,7 +14332,7 @@ try_again:
                     int actual_end = (end - 1);
 
                     int count = end - start;
-                    int max_tries = max(count, 4);
+                    int max_tries = min(count, 4);
                     for (int i = 0; i < max_tries; i++)
                     {
                         int heap_num = start + ((acontext->alloc_count >> 4) + new_home_hp->heap_number + i) % count;
