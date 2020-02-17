@@ -4,7 +4,7 @@
 //
 
 
-#ifndef _TARGET_ARM64_
+#ifndef TARGET_ARM64
 #error Should only include "cGenCpu.h" for ARM64 builds
 #endif
 
@@ -14,9 +14,9 @@
 #define INSTRFMT_K64
 #include <stublink.h>
 
-#ifndef FEATURE_PAL
+#ifndef TARGET_UNIX
 #define USE_REDIRECT_FOR_GCSTRESS
-#endif // FEATURE_PAL
+#endif // TARGET_UNIX
 
 EXTERN_C void getFPReturn(int fpSize, INT64 *pRetVal);
 EXTERN_C void setFPReturn(int fpSize, INT64 retVal);
@@ -151,6 +151,7 @@ struct FloatArgumentRegisters {
     NEON128   q[8];  // q0-q7
 };
 
+#define NUM_FLOAT_ARGUMENT_REGISTERS 8
 
 //**********************************************************************
 // Exception handling
@@ -445,13 +446,16 @@ public:
     };
 
 
-    static void Init();
+    static void Init(); 
 
-    void EmitUnboxMethodStub(MethodDesc* pRealMD);
     void EmitCallManagedMethod(MethodDesc *pMD, BOOL fTailCall);
     void EmitCallLabel(CodeLabel *target, BOOL fTailCall, BOOL fIndirect);
 
     void EmitShuffleThunk(struct ShuffleEntry *pShuffleEntryArray);
+
+#if defined(FEATURE_SHARE_GENERIC_CODE)  
+    void EmitComputedInstantiatingMethodStub(MethodDesc* pSharedMD, struct ShuffleEntry *pShuffleEntryArray, void* extraArg);
+#endif // FEATURE_SHARE_GENERIC_CODE
 
 #ifdef _DEBUG
     void EmitNop() { Emit32(0xD503201F); }

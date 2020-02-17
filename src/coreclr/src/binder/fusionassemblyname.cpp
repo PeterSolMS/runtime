@@ -11,7 +11,7 @@
 
 #include <windows.h>
 #include <winerror.h>
-#include "strongname.h"
+#include "strongnameinternal.h"
 
 #include "fusionhelpers.hpp"
 #include "fusionassemblyname.hpp"
@@ -26,26 +26,6 @@
 #define DISPLAY_NAME_DELIMITER_STRING W(",")
 #define VERSION_STRING_SEGMENTS 4
 #define REMAINING_BUFFER_SIZE ((*pccDisplayName) - (pszBuf - szDisplayName))
-
-// ---------------------------------------------------------------------------
-// Private Helpers
-// ---------------------------------------------------------------------------
-namespace
-{
-    HRESULT GetPublicKeyTokenFromPKBlob(LPBYTE pbPublicKeyToken, DWORD cbPublicKeyToken,
-                                        LPBYTE *ppbSN, LPDWORD pcbSN)
-    {
-        HRESULT hr = S_OK;
-
-        // Generate the hash of the public key.
-        if (!StrongNameTokenFromPublicKey(pbPublicKeyToken, cbPublicKeyToken, ppbSN, pcbSN))
-        {
-            hr = StrongNameErrorInfo();
-        }
-
-        return hr;
-    }
-};
 
 // ---------------------------------------------------------------------------
 // CPropertyArray ctor
@@ -353,7 +333,7 @@ HRESULT CAssemblyName::SetPropertyInternal(DWORD  PropertyId,
         if (pvProperty && cbProperty)
         {
             // Generate the public key token from the pk.
-            if (FAILED(hr = GetPublicKeyTokenFromPKBlob((LPBYTE) pvProperty, cbProperty, &pbSN, &cbSN)))
+            if (FAILED(hr = StrongNameTokenFromPublicKey((LPBYTE) pvProperty, cbProperty, &pbSN, &cbSN)))
                 goto exit;
 
             // Set the public key token property.
@@ -482,16 +462,11 @@ CreateAssemblyNameObject(
 
     if (parseDisplayName)
     {
-        hr = pName->Init(NULL, NULL);
-        if (FAILED(hr)) {
-            goto exit;
-        }
-
         hr = pName->Parse((LPWSTR)szAssemblyName);
     }
     else
     {
-        hr = pName->Init(szAssemblyName, NULL);
+        hr = pName->SetName(szAssemblyName);
     }
 
     if (FAILED(hr))
@@ -504,40 +479,6 @@ CreateAssemblyNameObject(
 
 exit:
     END_ENTRYPOINT_NOTHROW;
-    return hr;
-}
-
-// ---------------------------------------------------------------------------
-// CreateAssemblyNameObjectFromMetaData
-// ---------------------------------------------------------------------------
-STDAPI
-CreateAssemblyNameObjectFromMetaData(
-    LPASSEMBLYNAME    *ppAssemblyName,
-    LPCOLESTR          szAssemblyName,
-    ASSEMBLYMETADATA  *pamd)
-{
-
-    HRESULT hr = S_OK;
-    CAssemblyName *pName = NULL;
-
-    pName = NEW(CAssemblyName);
-    if (!pName)
-    {
-        hr = E_OUTOFMEMORY;
-        goto exit;
-    }
-
-    hr = pName->Init(szAssemblyName, pamd);
-
-    if (FAILED(hr))
-    {
-        SAFERELEASE(pName);
-        goto exit;
-    }
-
-    *ppAssemblyName = pName;
-
-exit:
     return hr;
 }
 
@@ -566,50 +507,15 @@ CAssemblyName::~CAssemblyName()
 }
 
 // ---------------------------------------------------------------------------
-// CAssemblyName::Init
+// CAssemblyName::SetName
 // ---------------------------------------------------------------------------
-HRESULT
-CAssemblyName::Init(LPCTSTR pszAssemblyName, ASSEMBLYMETADATA *pamd)
+HRESULT CAssemblyName::SetName(LPCTSTR pszAssemblyName)
 {
-    HRESULT hr = S_OK;
+    if (pszAssemblyName == nullptr)
+        return E_INVALIDARG;
 
-    // Name
-    if (pszAssemblyName)
-    {
-        hr = SetProperty(ASM_NAME_NAME, (LPTSTR) pszAssemblyName,
-            (DWORD)((wcslen(pszAssemblyName)+1) * sizeof(TCHAR)));
-        if (FAILED(hr))
-            goto exit;
-    }
-
-    if (pamd) {
-            // Major version
-        if (FAILED(hr = SetProperty(ASM_NAME_MAJOR_VERSION,
-                &pamd->usMajorVersion, sizeof(WORD)))
-
-            // Minor version
-            || FAILED(hr = SetProperty(ASM_NAME_MINOR_VERSION,
-                &pamd->usMinorVersion, sizeof(WORD)))
-
-            // Revision number
-            || FAILED(hr = SetProperty(ASM_NAME_REVISION_NUMBER,
-                &pamd->usRevisionNumber, sizeof(WORD)))
-
-            // Build number
-            || FAILED(hr = SetProperty(ASM_NAME_BUILD_NUMBER,
-                &pamd->usBuildNumber, sizeof(WORD)))
-
-            // Culture
-            || FAILED(hr = SetProperty(ASM_NAME_CULTURE,
-                pamd->szLocale, pamd->cbLocale * sizeof(WCHAR)))
-                )
-            {
-                goto exit;
-            }
-    }
-
-exit:
-    return hr;
+    return SetProperty(ASM_NAME_NAME, (LPTSTR) pszAssemblyName,
+        (DWORD)((wcslen(pszAssemblyName)+1) * sizeof(TCHAR)));
 }
 
 // ---------------------------------------------------------------------------

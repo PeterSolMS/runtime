@@ -106,17 +106,17 @@ namespace System.Runtime.CompilerServices
             // The null tests here ensure that the jit can optimize away the interface
             // tests when TAwaiter is a ref type.
 
-            if ((null != (object)default(TAwaiter)!) && (awaiter is ITaskAwaiter)) // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
+            if ((null != (object?)default(TAwaiter)) && (awaiter is ITaskAwaiter))
             {
                 ref TaskAwaiter ta = ref Unsafe.As<TAwaiter, TaskAwaiter>(ref awaiter); // relies on TaskAwaiter/TaskAwaiter<T> having the same layout
                 TaskAwaiter.UnsafeOnCompletedInternal(ta.m_task, box, continueOnCapturedContext: true);
             }
-            else if ((null != (object)default(TAwaiter)!) && (awaiter is IConfiguredTaskAwaiter)) // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
+            else if ((null != (object?)default(TAwaiter)) && (awaiter is IConfiguredTaskAwaiter))
             {
                 ref ConfiguredTaskAwaitable.ConfiguredTaskAwaiter ta = ref Unsafe.As<TAwaiter, ConfiguredTaskAwaitable.ConfiguredTaskAwaiter>(ref awaiter);
                 TaskAwaiter.UnsafeOnCompletedInternal(ta.m_task, box, ta.m_continueOnCapturedContext);
             }
-            else if ((null != (object)default(TAwaiter)!) && (awaiter is IStateMachineBoxAwareAwaiter)) // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
+            else if ((null != (object?)default(TAwaiter)) && (awaiter is IStateMachineBoxAwareAwaiter))
             {
                 try
                 {
@@ -151,6 +151,7 @@ namespace System.Runtime.CompilerServices
         /// <summary>Gets the "boxed" state machine object.</summary>
         /// <typeparam name="TStateMachine">Specifies the type of the async state machine.</typeparam>
         /// <param name="stateMachine">The state machine.</param>
+        /// <param name="taskField">The reference to the Task field storing the Task instance.</param>
         /// <returns>The "boxed" state machine.</returns>
         private static IAsyncStateMachineBox GetStateMachineBox<TStateMachine>(
             ref TStateMachine stateMachine,
@@ -427,16 +428,17 @@ namespace System.Runtime.CompilerServices
 
         /// <summary>Completes the already initialized task with the specified result.</summary>
         /// <param name="result">The result to use to complete the task.</param>
-        internal static void SetExistingTaskResult(Task<TResult> taskField, [AllowNull] TResult result)
+        /// <param name="task">The task to complete.</param>
+        internal static void SetExistingTaskResult(Task<TResult> task, [AllowNull] TResult result)
         {
-            Debug.Assert(taskField != null, "Expected non-null task");
+            Debug.Assert(task != null, "Expected non-null task");
 
             if (AsyncCausalityTracer.LoggingOn)
             {
-                AsyncCausalityTracer.TraceOperationCompletion(taskField, AsyncCausalityStatus.Completed);
+                AsyncCausalityTracer.TraceOperationCompletion(task, AsyncCausalityStatus.Completed);
             }
 
-            if (!taskField.TrySetResult(result))
+            if (!task.TrySetResult(result))
             {
                 ThrowHelper.ThrowInvalidOperationException(ExceptionResource.TaskT_TransitionToFinal_AlreadyCompleted);
             }
@@ -545,7 +547,7 @@ namespace System.Runtime.CompilerServices
             // find a cached value, since static fields (even if readonly and integral types)
             // require special access helpers in this NGEN'd and domain-neutral.
 
-            if (null != (object)default(TResult)!) // help the JIT avoid the value type branches for ref types // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
+            if (null != (object?)default(TResult)) // help the JIT avoid the value type branches for ref types
             {
                 // Special case simple value types:
                 // - Boolean

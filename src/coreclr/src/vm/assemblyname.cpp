@@ -21,12 +21,8 @@
 
 #include "assemblyname.hpp"
 #include "field.h"
-#include "strongname.h"
+#include "strongnameinternal.h"
 #include "eeconfig.h"
-
-#ifndef URL_ESCAPE_AS_UTF8
-#define URL_ESCAPE_AS_UTF8              0x00040000  // Percent-encode all non-ASCII characters as their UTF-8 equivalents.
-#endif
 
 FCIMPL1(Object*, AssemblyNameNative::GetFileInformation, StringObject* filenameUNSAFE)
 {
@@ -77,36 +73,6 @@ FCIMPL1(Object*, AssemblyNameNative::GetFileInformation, StringObject* filenameU
 }
 FCIMPLEND
 
-FCIMPL1(Object*, AssemblyNameNative::ToString, Object* refThisUNSAFE)
-{
-    FCALL_CONTRACT;
-
-    OBJECTREF pObj          = NULL;
-    ASSEMBLYNAMEREF pThis   = (ASSEMBLYNAMEREF) (OBJECTREF) refThisUNSAFE;
-    HELPER_METHOD_FRAME_BEGIN_RET_1(pThis);
-
-    if (pThis == NULL)
-        COMPlusThrow(kNullReferenceException, W("NullReference_This"));
-
-    ACQUIRE_STACKING_ALLOCATOR(pStackingAllocator);
-
-    AssemblySpec spec;
-    spec.InitializeSpec(pStackingAllocator, (ASSEMBLYNAMEREF*) &pThis, FALSE);
-
-    StackSString name;
-    spec.GetFileOrDisplayName(ASM_DISPLAYF_VERSION |
-                              ASM_DISPLAYF_CULTURE |
-                              ASM_DISPLAYF_PUBLIC_KEY_TOKEN,
-                              name);
-
-    pObj = (OBJECTREF) StringObject::NewString(name);
-
-    HELPER_METHOD_FRAME_END();
-    return OBJECTREFToObject(pObj);
-}
-FCIMPLEND
-
-
 FCIMPL1(Object*, AssemblyNameNative::GetPublicKeyToken, Object* refThisUNSAFE)
 {
     FCALL_CONTRACT;
@@ -132,8 +98,7 @@ FCIMPL1(Object*, AssemblyNameNative::GetPublicKeyToken, Object* refThisUNSAFE)
 
             {
                 GCX_PREEMP();
-                if (!StrongNameTokenFromPublicKey(pbKey, cb, &pbToken, &cb))
-                    COMPlusThrowHR(StrongNameErrorInfo());
+                IfFailThrow(StrongNameTokenFromPublicKey(pbKey, cb, &pbToken, &cb));
             }
         }
 

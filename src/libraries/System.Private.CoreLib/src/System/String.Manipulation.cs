@@ -5,6 +5,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using System.Text;
 using Internal.Runtime.CompilerServices;
 
@@ -1020,7 +1021,11 @@ namespace System
             do
             {
                 index = ci.IndexOf(this, oldValue, startIndex, this.Length - startIndex, options, &matchLength);
-                if (index >= 0)
+
+                // There's the possibility that 'oldValue' has zero collation weight (empty string equivalent).
+                // If this is the case, we behave as if there are no more substitutions to be made.
+
+                if (index >= 0 && matchLength > 0)
                 {
                     // append the unmodified portion of string
                     result.Append(this.AsSpan(startIndex, index - startIndex));
@@ -1055,63 +1060,55 @@ namespace System
             if (oldChar == newChar)
                 return this;
 
-            unsafe
+            int firstIndex = IndexOf(oldChar);
+
+            if (firstIndex < 0)
+                return this;
+
+            int remainingLength = Length - firstIndex;
+            string result = FastAllocateString(Length);
+
+            int copyLength = firstIndex;
+
+            // Copy the characters already proven not to match.
+            if (copyLength > 0)
             {
-                int remainingLength = Length;
-
-                fixed (char* pChars = &_firstChar)
-                {
-                    char* pSrc = pChars;
-
-                    while (remainingLength > 0)
-                    {
-                        if (*pSrc == oldChar)
-                        {
-                            break;
-                        }
-
-                        remainingLength--;
-                        pSrc++;
-                    }
-                }
-
-                if (remainingLength == 0)
-                    return this;
-
-                string result = FastAllocateString(Length);
-
-                fixed (char* pChars = &_firstChar)
-                {
-                    fixed (char* pResult = &result._firstChar)
-                    {
-                        int copyLength = Length - remainingLength;
-
-                        // Copy the characters already proven not to match.
-                        if (copyLength > 0)
-                        {
-                            wstrcpy(pResult, pChars, copyLength);
-                        }
-
-                        // Copy the remaining characters, doing the replacement as we go.
-                        char* pSrc = pChars + copyLength;
-                        char* pDst = pResult + copyLength;
-
-                        do
-                        {
-                            char currentChar = *pSrc;
-                            if (currentChar == oldChar)
-                                currentChar = newChar;
-                            *pDst = currentChar;
-
-                            remainingLength--;
-                            pSrc++;
-                            pDst++;
-                        } while (remainingLength > 0);
-                    }
-                }
-
-                return result;
+                Buffer.Memmove(ref result._firstChar, ref _firstChar, (uint)copyLength);
             }
+
+            // Copy the remaining characters, doing the replacement as we go.
+            ref ushort pSrc = ref Unsafe.Add(ref Unsafe.As<char, ushort>(ref _firstChar), copyLength);
+            ref ushort pDst = ref Unsafe.Add(ref Unsafe.As<char, ushort>(ref result._firstChar), copyLength);
+
+            if (Vector.IsHardwareAccelerated && remainingLength >= Vector<ushort>.Count)
+            {
+                Vector<ushort> oldChars = new Vector<ushort>(oldChar);
+                Vector<ushort> newChars = new Vector<ushort>(newChar);
+
+                do
+                {
+                    Vector<ushort> original = Unsafe.ReadUnaligned<Vector<ushort>>(ref Unsafe.As<ushort, byte>(ref pSrc));
+                    Vector<ushort> equals = Vector.Equals(original, oldChars);
+                    Vector<ushort> results = Vector.ConditionalSelect(equals, newChars, original);
+                    Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref pDst), results);
+
+                    pSrc = ref Unsafe.Add(ref pSrc, Vector<ushort>.Count);
+                    pDst = ref Unsafe.Add(ref pDst, Vector<ushort>.Count);
+                    remainingLength -= Vector<ushort>.Count;
+                }
+                while (remainingLength >= Vector<ushort>.Count);
+            }
+
+            for (; remainingLength > 0; remainingLength--)
+            {
+                ushort currentChar = pSrc;
+                pDst = currentChar == oldChar ? newChar : currentChar;
+
+                pSrc = ref Unsafe.Add(ref pSrc, 1);
+                pDst = ref Unsafe.Add(ref pDst, 1);
+            }
+
+            return result;
         }
 
         public string Replace(string oldValue, string? newValue)
@@ -1697,7 +1694,7 @@ namespace System
         // Creates a copy of this string in lower case based on invariant culture.
         public string ToLowerInvariant()
         {
-            return CultureInfo.InvariantCulture.TextInfo.ToLower(this);
+            return TextInfo.Invariant.ToLower(this);
         }
 
         public string ToUpper() => ToUpper(null);
@@ -1712,7 +1709,7 @@ namespace System
         // Creates a copy of this string in upper case based on invariant culture.
         public string ToUpperInvariant()
         {
-            return CultureInfo.InvariantCulture.TextInfo.ToUpper(this);
+            return TextInfo.Invariant.ToUpper(this);
         }
 
         // Trims the whitespace from both ends of the string.  Whitespace is defined by

@@ -12,10 +12,13 @@ parameters:
   crossrootfsDir: ''
   # If true, run the corefx tests instead of the coreclr ones
   corefxTests: false
+  liveLibrariesBuildConfig: ''
   displayNameArgs: ''
   runInUnloadableContext: false
   condition: true
   stagedBuild: false
+  variables: {}
+  pool: ''
 
 ### Test job
 
@@ -24,9 +27,10 @@ parameters:
 
 jobs:
 - ${{ if and(ne(parameters.corefxTests, true), eq(parameters.osSubgroup, parameters.managedTestBuildOsSubgroup), eq(parameters.osGroup, parameters.managedTestBuildOsGroup)) }}:
-  - template: build-test-job.yml
+  - template: /eng/pipelines/coreclr/templates/build-test-job.yml
     parameters:
       buildConfig: ${{ parameters.buildConfig }}
+      liveLibrariesBuildConfig: ${{ parameters.liveLibrariesBuildConfig }}
       archType: ${{ parameters.archType }}
       osGroup: ${{ parameters.managedTestBuildOsGroup }}
       osSubgroup: ${{ parameters.managedTestBuildOsSubgroup }}
@@ -35,10 +39,13 @@ jobs:
       displayNameArgs: ${{ parameters.displayNameArgs }}
       condition: ${{ parameters.condition }}
       stagedBuild: ${{ parameters.stagedBuild }}
+      variables: ${{ parameters.variables }}
+      pool: ${{ parameters.pool }}
 
-- template: run-test-job.yml
+- template: /eng/pipelines/coreclr/templates/run-test-job.yml
   parameters:
     buildConfig: ${{ parameters.buildConfig }}
+    liveLibrariesBuildConfig: ${{ parameters.liveLibrariesBuildConfig }}
     archType: ${{ parameters.archType }}
     osGroup: ${{ parameters.osGroup }}
     osSubgroup: ${{ parameters.osSubgroup }}
@@ -53,3 +60,5 @@ jobs:
     displayNameArgs: ${{ parameters.displayNameArgs }}
     stagedBuild: ${{ parameters.stagedBuild }}
     runInUnloadableContext: ${{ parameters.runInUnloadableContext }}
+    variables: ${{ parameters.variables }}
+    pool: ${{ parameters.pool }}

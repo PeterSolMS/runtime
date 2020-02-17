@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Diagnostics;
 using System.IO;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -237,7 +236,7 @@ namespace System.Net
                         int payloadSize = _curReadHeader.PayloadSize;
                         if (payloadSize < 0)
                         {
-                            // Let's call user callback and he call us back and we will throw
+                            // Let's call user callback and they call us back and we will throw
                             workerResult.InvokeCallback(new System.IO.IOException(SR.net_frame_read_size));
                         }
 

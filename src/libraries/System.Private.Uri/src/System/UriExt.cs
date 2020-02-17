@@ -81,7 +81,7 @@ namespace System
 
             bool hasUnicode = false;
 
-            _iriParsing = (IriParsing && ((_syntax == null) || _syntax.InFact(UriSyntaxFlags.AllowIriParsing)));
+            _iriParsing = IriParsingStatic(_syntax);
 
             if (_iriParsing &&
                 (CheckForUnicode(_string) || CheckForEscapedUnreserved(_string)))
@@ -383,7 +383,7 @@ namespace System
             return Syntax.InternalIsWellFormedOriginalString(this);
         }
 
-        public static bool IsWellFormedUriString(string? uriString, UriKind uriKind)
+        public static bool IsWellFormedUriString([NotNullWhen(true)] string? uriString, UriKind uriKind)
         {
             Uri? result;
 
@@ -896,7 +896,7 @@ namespace System
         //
         private void CreateThisFromUri(Uri otherUri)
         {
-            // Clone the other guy but develop own UriInfo member
+            // Clone the other URI but develop own UriInfo member
             _info = null!;
 
             _flags = otherUri._flags;

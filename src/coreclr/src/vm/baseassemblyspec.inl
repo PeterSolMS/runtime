@@ -590,10 +590,6 @@ inline void BaseAssemblySpec::SetContext(ASSEMBLYMETADATA* assemblyData)
     m_context.usMinorVersion=assemblyData->usMinorVersion;
     m_context.usBuildNumber=assemblyData->usBuildNumber;
     m_context.usRevisionNumber=assemblyData->usRevisionNumber;
-    m_context.rProcessor=assemblyData->rProcessor;
-    m_context.ulProcessor=assemblyData->ulProcessor;
-    m_context.rOS=assemblyData->rOS;
-    m_context.ulOS=assemblyData->ulOS;
     m_context.szLocale="";
 };
 
@@ -620,19 +616,5 @@ inline LPCSTR BaseAssemblySpec::GetName()  const
     LIMITED_METHOD_CONTRACT;
     return m_pAssemblyName;
 }
-
-
-
-inline BOOL BaseAssemblySpec::VerifyBindingString(LPCWSTR pwStr)
-{
-    WRAPPER_NO_CONTRACT;
-    if (wcschr(pwStr, '\\') ||
-        wcschr(pwStr, '/') ||
-        wcschr(pwStr, ':'))
-        return FALSE;
-
-    return TRUE;
-}
-
 
 #endif // __BASE_ASSEMBLY_SPEC_INL__

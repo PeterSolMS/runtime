@@ -2623,7 +2623,7 @@ void *
 CPalThread::GetStackBase()
 {
     void* stackBase;
-#ifdef _TARGET_MAC64
+#ifdef TARGET_OSX
     // This is a Mac specific method
     stackBase = pthread_get_stackaddr_np(pthread_self());
 #else
@@ -2663,7 +2663,7 @@ void *
 CPalThread::GetStackLimit()
 {
     void* stackLimit;
-#ifdef _TARGET_MAC64
+#ifdef TARGET_OSX
     // This is a Mac specific method
     stackLimit = ((BYTE *)pthread_get_stackaddr_np(pthread_self()) -
                    pthread_get_stacksize_np(pthread_self()));
@@ -2808,7 +2808,7 @@ PAL_InjectActivation(
         palError = InjectActivationInternal(pTargetThread);
     }
 
-    if (palError == NO_ERROR)
+    if (palError != NO_ERROR)
     {
         pCurrentThread->SetLastError(palError);
     }
@@ -2935,10 +2935,9 @@ PAL_GetCurrentThreadAffinitySet(SIZE_T size, UINT_PTR* data)
     if (st == 0)
     {
         const SIZE_T BitsPerBitsetEntry = 8 * sizeof(UINT_PTR);
-        int nrcpus = PAL_GetTotalCpuCount();
 
         // Get info for as much processors as it is possible to fit into the resulting set
-        SIZE_T remainingCount = std::min(size * BitsPerBitsetEntry, (SIZE_T)nrcpus);
+        SIZE_T remainingCount = std::min(size * BitsPerBitsetEntry, (SIZE_T)CPU_SETSIZE);
         SIZE_T i = 0;
         while (remainingCount != 0)
         {

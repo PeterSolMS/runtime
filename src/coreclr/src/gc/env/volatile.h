@@ -67,12 +67,12 @@
 #error The Volatile type is currently only defined for Visual C++ and GNU C++
 #endif
 
-#if defined(__GNUC__) && !defined(_X86_) && !defined(_AMD64_) && !defined(_ARM_) && !defined(_ARM64_)
+#if defined(__GNUC__) && !defined(HOST_X86) && !defined(HOST_AMD64) && !defined(HOST_ARM) && !defined(HOST_ARM64)
 #error The Volatile type is currently only defined for GCC when targeting x86, AMD64, ARM or ARM64 CPUs
 #endif
 
 #if defined(__GNUC__)
-#if defined(_ARM_) || defined(_ARM64_)
+#if defined(HOST_ARM) || defined(HOST_ARM64)
 // This is functionally equivalent to the MemoryBarrier() macro used on ARM on Windows.
 #define VOLATILE_MEMORY_BARRIER() asm volatile ("dmb ish" : : : "memory")
 #else
@@ -88,8 +88,8 @@
 // notice.
 //
 #define VOLATILE_MEMORY_BARRIER() asm volatile ("" : : : "memory")
-#endif // _ARM_ || _ARM64_
-#elif (defined(_ARM_) || defined(_ARM64_)) && _ISO_VOLATILE
+#endif // HOST_ARM || HOST_ARM64
+#elif (defined(HOST_ARM) || defined(HOST_ARM64)) && _ISO_VOLATILE
 // ARM & ARM64 have a very weak memory model and very few tools to control that model. We're forced to perform a full
 // memory barrier to preserve the volatile semantics. Technically this is only necessary on MP systems but we
 // currently don't have a cheap way to determine the number of CPUs from this header file. Revisit this if it
@@ -127,7 +127,7 @@ struct RemoveVolatile<volatile T>
 // Starting at version 3.8, clang errors out on initializing of type int * to volatile int *. To fix this, we add two templates to cast away volatility
 // Helper structures for casting away volatileness
 
-#if defined(_ARM64_) && defined(_MSC_VER)
+#if defined(HOST_ARM64) && defined(_MSC_VER)
 #include <arm64intr.h>
 #endif
 
@@ -136,7 +136,7 @@ inline
 T VolatileLoad(T const * pt)
 {
 #ifndef DACCESS_COMPILE
-#if defined(_ARM64_) && defined(__GNUC__)
+#if defined(HOST_ARM64) && defined(__GNUC__)
     T val;
     static const unsigned lockFreeAtomicSizeMask = (1 << 1) | (1 << 2) | (1 << 4) | (1 << 8);
     if((1 << sizeof(T)) & lockFreeAtomicSizeMask)
@@ -148,26 +148,27 @@ T VolatileLoad(T const * pt)
         val = *(T volatile const *)pt;
         asm volatile ("dmb ishld" : : : "memory");
     }
-#elif defined(_ARM64_) && defined(_MSC_VER)
+#elif defined(HOST_ARM64) && defined(_MSC_VER)
 // silence warnings on casts in branches that are not taken.
 #pragma warning(push)
 #pragma warning(disable : 4302)
 #pragma warning(disable : 4311)
 #pragma warning(disable : 4312)
     T val;
+    T* pv = &val;
     switch (sizeof(T))
     {
     case 1:
-        val = (typename RemoveVolatile<T>::type)__ldar8 ((unsigned __int8  volatile*)pt);
+        *(unsigned __int8* )pv = __ldar8 ((unsigned __int8   volatile*)pt);
         break;
     case 2:
-        val = (typename RemoveVolatile<T>::type)__ldar16((unsigned __int16 volatile*)pt);
+        *(unsigned __int16*)pv = __ldar16((unsigned __int16  volatile*)pt);
         break;
     case 4:
-        val = (typename RemoveVolatile<T>::type)__ldar32((unsigned __int32 volatile*)pt);
+        *(unsigned __int32*)pv = __ldar32((unsigned __int32  volatile*)pt);
         break;
     case 8:
-        val = (typename RemoveVolatile<T>::type)__ldar64((unsigned __int64 volatile*)pt);
+        *(unsigned __int64*)pv = __ldar64((unsigned __int64  volatile*)pt);
         break;
     default:
         val = *(T volatile const*)pt;
@@ -217,7 +218,7 @@ inline
 void VolatileStore(T* pt, T val)
 {
 #ifndef DACCESS_COMPILE
-#if defined(_ARM64_) && defined(__GNUC__)
+#if defined(HOST_ARM64) && defined(__GNUC__)
     static const unsigned lockFreeAtomicSizeMask = (1 << 1) | (1 << 2) | (1 << 4) | (1 << 8);
     if((1 << sizeof(T)) & lockFreeAtomicSizeMask)
     {
@@ -228,25 +229,26 @@ void VolatileStore(T* pt, T val)
         VOLATILE_MEMORY_BARRIER();
         *(T volatile *)pt = val;
     }
-#elif defined(_ARM64_) && defined(_MSC_VER)
+#elif defined(HOST_ARM64) && defined(_MSC_VER)
 // silence warnings on casts in branches that are not taken.
 #pragma warning(push)
 #pragma warning(disable : 4302)
 #pragma warning(disable : 4311)
 #pragma warning(disable : 4312)
+    T* pv = &val;
     switch (sizeof(T))
     {
     case 1:
-        __stlr8 ((unsigned __int8  volatile*)pt, (unsigned __int8) val);
+        __stlr8 ((unsigned __int8  volatile*)pt, *(unsigned __int8* )pv);
         break;
     case 2:
-        __stlr16((unsigned __int16 volatile*)pt, (unsigned __int16)val);
+        __stlr16((unsigned __int16 volatile*)pt, *(unsigned __int16*)pv);
         break;
     case 4:
-        __stlr32((unsigned __int32 volatile*)pt, (unsigned __int32)val);
+        __stlr32((unsigned __int32 volatile*)pt, *(unsigned __int32*)pv);
         break;
     case 8:
-        __stlr64((unsigned __int64 volatile*)pt ,(unsigned __int64)val);
+        __stlr64((unsigned __int64 volatile*)pt, *(unsigned __int64*)pv);
         break;
     default:
         __dmb(_ARM64_BARRIER_ISH);

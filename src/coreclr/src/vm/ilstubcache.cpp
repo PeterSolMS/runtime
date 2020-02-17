@@ -225,13 +225,13 @@ MethodDesc* ILStubCache::CreateNewMethodDesc(LoaderHeap* pCreationHeap, MethodTa
     }
     else
 #endif
-#ifdef FEATURE_STUBS_AS_IL
-    if (SF_IsSecureDelegateStub(dwStubFlags))
+    if (SF_IsWrapperDelegateStub(dwStubFlags))
     {
-        pMD->m_dwExtendedFlags |= DynamicMethodDesc::nomdSecureDelegateStub;
-        pMD->GetILStubResolver()->SetStubType(ILStubResolver::SecureDelegateStub);
+        pMD->m_dwExtendedFlags |= DynamicMethodDesc::nomdWrapperDelegateStub;
+        pMD->GetILStubResolver()->SetStubType(ILStubResolver::WrapperDelegateStub);
     }
     else
+#ifdef FEATURE_INSTANTIATINGSTUB_AS_IL
     if (SF_IsUnboxingILStub(dwStubFlags))
     {
         pMD->m_dwExtendedFlags |= DynamicMethodDesc::nomdUnboxingILStub;
@@ -344,7 +344,7 @@ MethodTable* ILStubCache::GetOrCreateStubMethodTable(Module* pModule)
     CONTRACT_END;
 
 #ifdef _DEBUG
-    if (pModule->IsSystem() || pModule->GetDomain()->IsSharedDomain() || pModule->GetDomain()->AsAppDomain()->IsCompilationDomain())
+    if (pModule->IsSystem() || pModule->GetDomain()->AsAppDomain()->IsCompilationDomain())
     {
         // in the shared domain and compilation AD we are associated with the module
         CONSISTENCY_CHECK(pModule->GetILStubCache() == this);

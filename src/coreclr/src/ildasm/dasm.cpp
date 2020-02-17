@@ -34,7 +34,7 @@
 #include <corcompile.h>
 #endif
 
-#ifdef FEATURE_PAL
+#ifdef TARGET_UNIX
 #include "resourcestring.h"
 #define NATIVE_STRING_RESOURCE_NAME dasm_rc
 DECLARE_NATIVE_STRING_RESOURCE_TABLE(NATIVE_STRING_RESOURCE_NAME);
@@ -249,7 +249,7 @@ WCHAR* RstrW(unsigned id)
         default:
             break;
     }
-#ifdef FEATURE_PAL
+#ifdef TARGET_UNIX
     LoadNativeStringResource(NATIVE_STRING_RESOURCE_TABLE(NATIVE_STRING_RESOURCE_NAME),id, buff, cchBuff, NULL);
 #else
     _ASSERTE(g_hResources != NULL);
@@ -4949,7 +4949,7 @@ void DumpVTables(IMAGE_COR20_HEADER *CORHeader, void* GUICookie)
     sprintf_s(szString,SZSTRING_SIZE,"// VTableFixup Directory:");
     printLine(GUICookie,szStr);
 
-    // Pull back a pointer to the guy.
+    // Pull back a pointer to it.
     iCount = VAL32(CORHeader->VTableFixups.Size) / sizeof(IMAGE_COR_VTABLEFIXUP);
     if ((g_pPELoader->getVAforRVA(VAL32(CORHeader->VTableFixups.VirtualAddress), (void **) &pFixup) == FALSE)
         ||(g_pPELoader->getVAforRVA(VAL32(CORHeader->VTableFixups.VirtualAddress)+VAL32(CORHeader->VTableFixups.Size)-1, (void **) &pDummy) == FALSE))
@@ -5022,7 +5022,7 @@ void DumpEATTable(IMAGE_COR20_HEADER *CORHeader, void* GUICookie)
         return;
     }
 
-    // Pull back a pointer to the guy.
+    // Pull back a pointer to it.
     iCount = VAL32(CORHeader->ExportAddressTableJumps.Size) / IMAGE_COR_EATJ_THUNK_SIZE;
     if ((g_pPELoader->getVAforRVA(VAL32(CORHeader->ExportAddressTableJumps.VirtualAddress), (void **) &pFixup) == FALSE)
         ||(g_pPELoader->getVAforRVA(VAL32(CORHeader->ExportAddressTableJumps.VirtualAddress)+VAL32(CORHeader->ExportAddressTableJumps.Size)-1, (void **) &pDummy) == FALSE))
@@ -7694,7 +7694,7 @@ ReportAndExit:
             fSuccess = TRUE;
         }
         fSuccess = TRUE;
-#ifndef FEATURE_PAL
+#ifndef TARGET_UNIX
         if(g_pFile) // dump .RES file (if any), if not to console
         {
             WCHAR wzResFileName[2048], *pwc;

@@ -109,47 +109,6 @@ LoaderAllocator * DomainFile::GetLoaderAllocator()
 
 #ifndef DACCESS_COMPILE
 
-void DomainFile::ReleaseFiles()
-{
-    WRAPPER_NO_CONTRACT;
-    Module* pModule=GetCurrentModule();
-    if(pModule)
-        pModule->StartUnload();
-
-    if (m_pFile)
-        m_pFile->ReleaseIL();
-    if(m_pOriginalFile)
-        m_pOriginalFile->ReleaseIL();
-
-    if(pModule)
-        pModule->ReleaseILData();
-}
-
-BOOL DomainFile::TryEnsureActive()
-{
-    CONTRACT(BOOL)
-    {
-        INSTANCE_CHECK;
-        THROWS;
-        GC_TRIGGERS;
-    }
-    CONTRACT_END;
-
-    BOOL success = TRUE;
-
-    EX_TRY
-      {
-          EnsureActive();
-      }
-    EX_CATCH
-      {
-          success = FALSE;
-      }
-    EX_END_CATCH(RethrowTransientExceptions);
-
-    RETURN success;
-}
-
 // Optimization intended for EnsureLoadLevel only
 #include <optsmallperfcritical.h>
 void DomainFile::EnsureLoadLevel(FileLoadLevel targetLevel)
@@ -932,8 +891,6 @@ void DomainFile::LoadLibrary()
     }
     CONTRACTL_END;
 
-    Thread::LoadingFileHolder holder(GetThread());
-    GetThread()->SetLoadingFile(this);
     GetFile()->LoadLibrary();
 }
 
@@ -1260,22 +1217,6 @@ DomainAssembly::~DomainAssembly()
     {
         delete m_pAssembly;
     }
-}
-
-void DomainAssembly::ReleaseFiles()
-{
-    STANDARD_VM_CONTRACT;
-
-    if(m_pAssembly)
-        m_pAssembly->StartUnload();
-    ModuleIterator i = IterateModules(kModIterIncludeLoading);
-    while (i.Next())
-    {
-        if (i.GetDomainFile() != this)
-             i.GetDomainFile()->ReleaseFiles();
-    }
-
-    DomainFile::ReleaseFiles();
 }
 
 void DomainAssembly::SetAssembly(Assembly* pAssembly)
@@ -1700,7 +1641,7 @@ void GetNGenCpuInfo(CORINFO_CPU * cpuInfo)
 {
     LIMITED_METHOD_CONTRACT;
 
-#ifdef _TARGET_X86_
+#ifdef TARGET_X86
 
     static CORINFO_CPU ngenCpuInfo =
         {
@@ -1712,11 +1653,11 @@ void GetNGenCpuInfo(CORINFO_CPU * cpuInfo)
     // We always generate P3-compatible code on CoreCLR
     *cpuInfo = ngenCpuInfo;
 
-#else // _TARGET_X86_
+#else // TARGET_X86
     cpuInfo->dwCPUType = 0;
     cpuInfo->dwFeatures = 0;
     cpuInfo->dwExtendedFeatures = 0;
-#endif // _TARGET_X86_
+#endif // TARGET_X86
 }
 
 // --------------------------------------------------------------------------------
@@ -1740,7 +1681,7 @@ void DomainAssembly::GetCurrentVersionInfo(CORCOMPILE_VERSION_INFO *pNativeVersi
                                           &fForceProfiling,
                                           &fForceInstrument);
 
-#ifndef FEATURE_PAL
+#ifndef TARGET_UNIX
     pNativeVersionInfo->wOSPlatformID = VER_PLATFORM_WIN32_NT;
 #else
     pNativeVersionInfo->wOSPlatformID = VER_PLATFORM_UNIX;

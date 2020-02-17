@@ -2,7 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 // ------------------------------------------------------------------------------
-// Changes to this file must follow the http://aka.ms/api-review process.
+// Changes to this file must follow the https://aka.ms/api-review process.
 // ------------------------------------------------------------------------------
 
 namespace System.IO.Pipes
@@ -65,5 +65,15 @@ namespace System.IO.Pipes
         public void ResetAccessRule(System.IO.Pipes.PipeAccessRule rule) { }
         public void SetAccessRule(System.IO.Pipes.PipeAccessRule rule) { }
         public void SetAuditRule(System.IO.Pipes.PipeAuditRule rule) { }
+    }
+
+    public static class AnonymousPipeServerStreamAcl
+    {
+        public static System.IO.Pipes.AnonymousPipeServerStream Create(System.IO.Pipes.PipeDirection direction, System.IO.HandleInheritability inheritability, int bufferSize, System.IO.Pipes.PipeSecurity pipeSecurity) { throw null; }
+    }
+
+    public static class NamedPipeServerStreamAcl
+    {
+        public static System.IO.Pipes.NamedPipeServerStream Create(string pipeName, System.IO.Pipes.PipeDirection direction, int maxNumberOfServerInstances, System.IO.Pipes.PipeTransmissionMode transmissionMode, System.IO.Pipes.PipeOptions options, int inBufferSize, int outBufferSize, System.IO.Pipes.PipeSecurity pipeSecurity, System.IO.HandleInheritability inheritability = System.IO.HandleInheritability.None, System.IO.Pipes.PipeAccessRights additionalAccessRights = default) { throw null; }
     }
 }

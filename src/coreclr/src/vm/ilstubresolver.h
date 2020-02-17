@@ -33,6 +33,7 @@ public:
 
     OBJECTHANDLE ConstructStringLiteral(mdToken metaTok);
     BOOL IsValidStringRef(mdToken metaTok);
+    int GetStringLiteralLength(mdToken metaTok);
     void ResolveToken(mdToken token, TypeHandle * pTH, MethodDesc ** ppMD, FieldDesc ** ppFD);
     SigPointer ResolveSignature(mdToken token);
     SigPointer ResolveSignatureForVarArg(mdToken token);
@@ -91,8 +92,8 @@ protected:
 #ifdef FEATURE_MULTICASTSTUB_AS_IL
         MulticastDelegateStub,
 #endif
-#ifdef FEATURE_STUBS_AS_IL
-        SecureDelegateStub,
+        WrapperDelegateStub,
+#ifdef FEATURE_INSTANTIATINGSTUB_AS_IL
         UnboxingILStub,
         InstantiatingStub,
 #endif

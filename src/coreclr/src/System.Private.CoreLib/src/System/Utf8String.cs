@@ -6,14 +6,13 @@ using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Unicode;
 using Internal.Runtime.CompilerServices;
 
 #pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
-#if BIT64
+#if TARGET_64BIT
 using nint = System.Int64;
 using nuint = System.UInt64;
 #else
@@ -26,10 +25,7 @@ namespace System
     /// <summary>
     /// Represents an immutable string of UTF-8 code units.
     /// </summary>
-    public sealed partial class Utf8String : IComparable<Utf8String?>,
-#nullable disable // see comment on String
-        IEquatable<Utf8String>
-#nullable restore
+    public sealed partial class Utf8String : IComparable<Utf8String?>, IEquatable<Utf8String?>
     {
         /*
          * STATIC FIELDS

@@ -2,9 +2,11 @@
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.props" />
 
   <PropertyGroup>
-    <BuildDependsOnTargets>FilterProjects;GenerateLaunchSettingsFiles</BuildDependsOnTargets>
+    <BuildDependsOnTargets>GenerateLaunchSettingsFiles</BuildDependsOnTargets>
     <BuildDependsOnTargets Condition="'$(BinplaceTestSharedFramework)' == 'true'">$(BuildDependsOnTargets);GenerateTestSharedFrameworkDepsFile</BuildDependsOnTargets>
     <BuildDependsOnTargets Condition="'$(PlatformManifestFile)' != ''">$(BuildDependsOnTargets);GenerateFileVersionProps</BuildDependsOnTargets>
+    <TargetFrameworkIdentifier>netcoreapp</TargetFrameworkIdentifier>
+    <TargetFrameworkVersion>5.0</TargetFrameworkVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +30,28 @@
     </ItemGroup>
   </Target>
 
+  <UsingTask TaskName="GenerateFileVersionProps" AssemblyFile="$(InstallerTasksAssemblyPath)"/>
+  <Target Name="GenerateFileVersionProps" Condition="'$(BuildTargetFramework)' == '$(NetCoreAppCurrent)'">
+    <GenerateFileVersionProps Files="@(SharedFrameworkRuntimeFiles)"
+                              PackageId="Microsoft.NETCore.App"
+                              PackageVersion="$(ProductVersion)"
+                              PlatformManifestFile="$(PlatformManifestFile)"
+                              PreferredPackages="Microsoft.NetCore.App"
+                              PermitDllAndExeFilesLackingFileVersion="true" />
+  </Target>
+
+  <!--
+    Shared framework deps file generation.
+    Produces a test shared-framework deps file.
+    To use invoke target directly specifying NETCoreAppTestSharedFrameworkPath property.
+  -->
+  <UsingTask TaskName="GenerateTestSharedFrameworkDepsFile" AssemblyFile="$(InstallerTasksAssemblyPath)"/>
+  <Target Name="GenerateTestSharedFrameworkDepsFile" Condition="'$(BuildTargetFramework)' == '$(NetCoreAppCurrent)'">
+    <GenerateTestSharedFrameworkDepsFile SharedFrameworkDirectory="$(NETCoreAppTestSharedFrameworkPath)"
+                                         RuntimeGraphFiles="$(RuntimeIdGraphDefinitionFile)"
+                                         TargetRuntimeIdentifier="$(PackageRID)" />
+  </Target>
+
   <!-- Generate launch settings support files to enable VS debugging. -->
   <Target Name="GenerateLaunchSettingsFiles" Condition="'$(EnableLaunchSettings)' == 'true'">
     <PropertyGroup>
@@ -48,11 +72,11 @@
 
   <Target Name="Build"
           Condition="'$(SkipPrepareTest)' != 'true'"
-          DependsOnTargets="$(BuildDependsOnTargets)">
+          DependsOnTargets="GenerateLaunchSettingsFiles;GenerateTestSharedFrameworkDepsFile;GenerateFileVersionProps">
 
     <MSBuild Targets="Build"
              Projects="@(Project)"
-             Properties="BuildConfiguration=$(BuildConfiguration);%(Project.AdditionalProperties)"
+             Properties="TargetFramework=$(BuildTargetFramework);%(Project.AdditionalProperties)"
              BuildInParallel="true"
              ContinueOnError="ErrorAndStop" />
 

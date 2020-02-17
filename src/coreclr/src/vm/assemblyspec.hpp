@@ -123,7 +123,6 @@ class AssemblySpec  : public BaseAssemblySpec
         WRAPPER_NO_CONTRACT;
         BaseAssemblySpec::SetCodeBase(szCodeBase);
     }
-    void SetCodeBase(StackingAllocator* alloc, STRINGREF *pCodeBase);
 
     void SetParentAssembly(DomainAssembly *pAssembly)
     {
@@ -224,12 +223,8 @@ class AssemblySpec  : public BaseAssemblySpec
     // Load an assembly based on an explicit path
     static Assembly *LoadAssembly(LPCWSTR pFilePath);
 
-
-  private:
-    void MatchRetargetedPublicKeys(Assembly *pAssembly);
   public:
     void MatchPublicKeys(Assembly *pAssembly);
-    PEAssembly *ResolveAssemblyFile(AppDomain *pAppDomain);
 
     AppDomain *GetAppDomain()
     {

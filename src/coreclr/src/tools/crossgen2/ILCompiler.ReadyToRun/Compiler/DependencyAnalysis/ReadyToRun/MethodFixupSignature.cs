@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -8,6 +8,8 @@ using Internal.JitInterface;
 using Internal.Text;
 using Internal.TypeSystem;
 using Internal.TypeSystem.Ecma;
+using Internal.CorConstants;
+using Internal.ReadyToRunConstants;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
@@ -17,8 +19,6 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         private readonly MethodWithToken _method;
 
-        private readonly SignatureContext _signatureContext;
-
         private readonly bool _isUnboxingStub;
 
         private readonly bool _isInstantiatingStub;
@@ -26,20 +26,26 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public MethodFixupSignature(
             ReadyToRunFixupKind fixupKind, 
             MethodWithToken method, 
-            SignatureContext signatureContext,
             bool isUnboxingStub,
             bool isInstantiatingStub)
         {
             _fixupKind = fixupKind;
             _method = method;
-            _signatureContext = signatureContext;
             _isUnboxingStub = isUnboxingStub;
             _isInstantiatingStub = isInstantiatingStub;
+
+            // Ensure types in signature are loadable and resolvable, otherwise we'll fail later while emitting the signature
+            CompilerTypeSystemContext compilerContext = (CompilerTypeSystemContext)method.Method.Context;
+            compilerContext.EnsureLoadableMethod(method.Method);
+            if (method.ConstrainedType != null)
+                compilerContext.EnsureLoadableType(method.ConstrainedType);
         }
 
         public MethodDesc Method => _method.Method;
 
         public override int ClassCode => 150063499;
+
+        public bool IsUnboxingStub => _isUnboxingStub;
 
         public override ObjectData GetData(NodeFactory factory, bool relocsOnly = false)
         {
@@ -49,7 +55,6 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                 return new ObjectData(data: Array.Empty<byte>(), relocs: null, alignment: 0, definedSymbols: null);
             }
 
-            ReadyToRunCodegenNodeFactory r2rFactory = (ReadyToRunCodegenNodeFactory)factory;
             ObjectDataSignatureBuilder dataBuilder = new ObjectDataSignatureBuilder();
             dataBuilder.AddSymbol(this);
 
@@ -57,18 +62,18 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             ReadyToRunFixupKind fixupKind = _fixupKind;
             bool optimized = false;
             if (!_isUnboxingStub && !_isInstantiatingStub && _method.ConstrainedType == null &&
-                fixupKind == ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry)
+                fixupKind == ReadyToRunFixupKind.MethodEntry)
             {
                 if (!_method.Method.OwningType.HasInstantiation && !_method.Method.OwningType.IsArray)
                 {
                     if (_method.Token.TokenType == CorTokenType.mdtMethodDef)
                     {
-                        fixupKind = ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_DefToken;
+                        fixupKind = ReadyToRunFixupKind.MethodEntry_DefToken;
                         optimized = true;
                     }
                     else if (_method.Token.TokenType == CorTokenType.mdtMemberRef)
                     {
-                        fixupKind = ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_RefToken;
+                        fixupKind = ReadyToRunFixupKind.MethodEntry_RefToken;
                         optimized = true;
                     }
                 }
@@ -80,18 +85,18 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             {
                 if (method.Token.TokenType == CorTokenType.mdtMethodSpec)
                 {
-                    method = new MethodWithToken(method.Method, _signatureContext.GetModuleTokenForMethod(method.Method, throwIfNotFound: false), method.ConstrainedType);
+                    method = new MethodWithToken(method.Method, factory.SignatureContext.GetModuleTokenForMethod(method.Method, throwIfNotFound: false), method.ConstrainedType);
                 }
                 else if (!optimized && (method.Token.TokenType == CorTokenType.mdtMemberRef))
                 {
                     if (method.Method.OwningType.GetTypeDefinition() is EcmaType)
                     {
-                        method = new MethodWithToken(method.Method, _signatureContext.GetModuleTokenForMethod(method.Method, throwIfNotFound: false), method.ConstrainedType);
+                        method = new MethodWithToken(method.Method, factory.SignatureContext.GetModuleTokenForMethod(method.Method, throwIfNotFound: false), method.ConstrainedType);
                     }
                 }
             }
 
-            SignatureContext innerContext = dataBuilder.EmitFixup(r2rFactory, fixupKind, method.Token.Module, _signatureContext);
+            SignatureContext innerContext = dataBuilder.EmitFixup(factory, fixupKind, method.Token.Module, factory.SignatureContext);
 
             if (optimized && method.Token.TokenType == CorTokenType.mdtMethodDef)
             {
@@ -129,7 +134,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public override int CompareToImpl(ISortableNode other, CompilerComparer comparer)
         {
             MethodFixupSignature otherNode = (MethodFixupSignature)other;
-            int result = _fixupKind.CompareTo(otherNode._fixupKind);
+            int result = ((int)_fixupKind).CompareTo((int)otherNode._fixupKind);
             if (result != 0)
                 return result;
 
@@ -141,11 +146,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             if (result != 0)
                 return result;
 
-            result = _method.CompareTo(otherNode._method, comparer);
-            if (result != 0)
-                return result;
-
-            return _signatureContext.CompareTo(otherNode._signatureContext, comparer);
+            return _method.CompareTo(otherNode._method, comparer);
         }
     }
 }

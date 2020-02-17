@@ -2,7 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 // ------------------------------------------------------------------------------
-// Changes to this file must follow the http://aka.ms/api-review process.
+// Changes to this file must follow the https://aka.ms/api-review process.
 // ------------------------------------------------------------------------------
 
 namespace System.Net.Sockets
@@ -99,7 +99,7 @@ namespace System.Net.Sockets
         public override long Position { get { throw null; } set { } }
         protected bool Readable { get { throw null; } set { } }
         public override int ReadTimeout { get { throw null; } set { } }
-        protected System.Net.Sockets.Socket Socket { get { throw null; } }
+        public System.Net.Sockets.Socket Socket { get { throw null; } }
         protected bool Writeable { get { throw null; } set { } }
         public override int WriteTimeout { get { throw null; } set { } }
         public override System.IAsyncResult BeginRead(byte[] buffer, int offset, int size, System.AsyncCallback callback, object state) { throw null; }
@@ -241,6 +241,7 @@ namespace System.Net.Sockets
         public bool NoDelay { get { throw null; } set { } }
         public static bool OSSupportsIPv4 { get { throw null; } }
         public static bool OSSupportsIPv6 { get { throw null; } }
+        public static bool OSSupportsUnixDomainSockets { get { throw null; } }
         public System.Net.Sockets.ProtocolType ProtocolType { get { throw null; } }
         public int ReceiveBufferSize { get { throw null; } set { } }
         public int ReceiveTimeout { get { throw null; } set { } }
@@ -365,6 +366,7 @@ namespace System.Net.Sockets
     public partial class SocketAsyncEventArgs : System.EventArgs, System.IDisposable
     {
         public SocketAsyncEventArgs() { }
+        public SocketAsyncEventArgs(bool unsafeSuppressExecutionContextFlow) { }
         public System.Net.Sockets.Socket AcceptSocket { get { throw null; } set { } }
         public byte[] Buffer { get { throw null; } }
         public System.Collections.Generic.IList<System.ArraySegment<byte>> BufferList { get { throw null; } set { } }

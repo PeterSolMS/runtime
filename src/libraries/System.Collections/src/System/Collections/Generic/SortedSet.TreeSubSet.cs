@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Serialization;
 
 namespace System.Collections.Generic
@@ -16,7 +17,10 @@ namespace System.Collections.Generic
         internal sealed class TreeSubSet : SortedSet<T>, ISerializable, IDeserializationCallback
         {
             private readonly SortedSet<T> _underlying;
-            private readonly T _min, _max;
+            [MaybeNull, AllowNull]
+            private readonly T _min;
+            [MaybeNull, AllowNull]
+            private readonly T _max;
             // keeps track of whether the count variable is up to date
             // up to date -> _countVersion = _underlying.version
             // not up to date -> _countVersion < _underlying.version
@@ -35,7 +39,7 @@ namespace System.Collections.Generic
             }
 #endif
 
-            public TreeSubSet(SortedSet<T> Underlying, T Min, T Max, bool lowerBoundActive, bool upperBoundActive)
+            public TreeSubSet(SortedSet<T> Underlying, [AllowNull] T Min, [AllowNull] T Max, bool lowerBoundActive, bool upperBoundActive)
                 : base(Underlying.Comparer)
             {
                 _underlying = Underlying;
@@ -337,7 +341,7 @@ namespace System.Collections.Generic
             // This passes functionality down to the underlying tree, clipping edges if necessary
             // There's nothing gained by having a nested subset. May as well draw it from the base
             // Cannot increase the bounds of the subset, can only decrease it
-            public override SortedSet<T> GetViewBetween(T lowerValue, T upperValue)
+            public override SortedSet<T> GetViewBetween([AllowNull] T lowerValue, [AllowNull] T upperValue)
             {
                 if (_lBoundActive && Comparer.Compare(_min, lowerValue) > 0)
                 {

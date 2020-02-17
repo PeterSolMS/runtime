@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using Internal.JitInterface;
 using Internal.Text;
 using Internal.TypeSystem;
+using Internal.ReadyToRunConstants;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
@@ -16,21 +17,19 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         private readonly MethodWithGCInfo _localMethod;
 
         public PrecodeMethodImport(
-            ReadyToRunCodegenNodeFactory factory,
+            NodeFactory factory,
             ReadyToRunFixupKind fixupKind,
             MethodWithToken method,
             MethodWithGCInfo localMethod,
             bool isUnboxingStub,
-            bool isInstantiatingStub,
-            SignatureContext signatureContext) :
+            bool isInstantiatingStub) :
             base (
                 factory,
                 factory.MethodSignature(
                       fixupKind,
                       method,
                       isUnboxingStub,
-                      isInstantiatingStub,
-                      signatureContext)
+                      isInstantiatingStub)
             )
         {
             _localMethod = localMethod;

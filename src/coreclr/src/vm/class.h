@@ -2174,7 +2174,7 @@ public:
     PTR_Stub                         m_pInstRetBuffCallStub;
     RelativePointer<PTR_MethodDesc>  m_pInvokeMethod;
     PTR_Stub                         m_pMultiCastInvokeStub;
-    PTR_Stub                         m_pSecureDelegateInvokeStub;
+    PTR_Stub                         m_pWrapperDelegateInvokeStub;
     UMThunkMarshInfo*                m_pUMThunkMarshInfo;
     RelativePointer<PTR_MethodDesc>  m_pBeginInvokeMethod;
     RelativePointer<PTR_MethodDesc>  m_pEndInvokeMethod;
@@ -2332,7 +2332,7 @@ inline PCODE GetPreStubEntryPoint()
     return GetEEFuncEntryPoint(ThePreStub);
 }
 
-#if defined(HAS_COMPACT_ENTRYPOINTS) && defined(_TARGET_ARM_)
+#if defined(HAS_COMPACT_ENTRYPOINTS) && defined(TARGET_ARM)
 
 EXTERN_C void STDCALL ThePreStubCompactARM();
 
@@ -2341,7 +2341,7 @@ inline PCODE GetPreStubCompactARMEntryPoint()
     return GetEEFuncEntryPoint(ThePreStubCompactARM);
 }
 
-#endif // defined(HAS_COMPACT_ENTRYPOINTS) && defined(_TARGET_ARM_)
+#endif // defined(HAS_COMPACT_ENTRYPOINTS) && defined(TARGET_ARM)
 
 PCODE TheUMThunkPreStub();
 

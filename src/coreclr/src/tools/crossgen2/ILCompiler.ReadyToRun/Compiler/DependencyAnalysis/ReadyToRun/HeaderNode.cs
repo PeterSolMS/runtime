@@ -7,17 +7,10 @@ using System.Collections.Generic;
 using Internal.Runtime;
 using Internal.Text;
 using Internal.TypeSystem;
+using Internal.ReadyToRunConstants;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
-    internal struct ReadyToRunHeaderConstants
-    {
-        public const uint Signature = 0x00525452; // 'RTR'
-
-        public const ushort CurrentMajorVersion = 3;
-        public const ushort CurrentMinorVersion = 0;
-    }
-
     public abstract class HeaderTableNode : ObjectNode, ISymbolDefinitionNode
     {
         public TargetDetails Target { get; private set; }
@@ -65,12 +58,14 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             public readonly ISymbolNode StartSymbol;
         }
 
-        private List<HeaderItem> _items = new List<HeaderItem>();
-        private TargetDetails _target;
+        private readonly List<HeaderItem> _items = new List<HeaderItem>();
+        private readonly TargetDetails _target;
+        private readonly ReadyToRunFlags _flags;
 
-        public HeaderNode(TargetDetails target)
+        public HeaderNode(TargetDetails target, ReadyToRunFlags flags)
         {
             _target = target;
+            _flags = flags;
         }
 
         public void Add(ReadyToRunSectionType id, ObjectNode node, ISymbolNode startSymbol)
@@ -119,7 +114,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             builder.EmitShort((short)(ReadyToRunHeaderConstants.CurrentMinorVersion));
 
             // ReadyToRunHeader.Flags
-            builder.EmitInt(0);
+            builder.EmitInt((int)_flags);
 
             // ReadyToRunHeader.NumberOfSections
             ObjectDataBuilder.Reservation sectionCountReservation = builder.ReserveInt();

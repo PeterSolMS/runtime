@@ -2,11 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using Microsoft.Win32.SafeHandles;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
-using System.Security;
+using Microsoft.Win32.SafeHandles;
 
 namespace System.IO.Pipes
 {
@@ -15,14 +13,28 @@ namespace System.IO.Pipes
     /// </summary>
     public sealed partial class AnonymousPipeServerStream : PipeStream
     {
-        // Creates the anonymous pipe.
+        internal AnonymousPipeServerStream(PipeDirection direction, HandleInheritability inheritability, int bufferSize, PipeSecurity pipeSecurity)
+            : base(direction, bufferSize)
+        {
+            if (direction == PipeDirection.InOut)
+            {
+                throw new NotSupportedException(SR.NotSupported_AnonymousPipeUnidirectional);
+            }
+
+            if (inheritability < HandleInheritability.None || inheritability > HandleInheritability.Inheritable)
+            {
+                throw new ArgumentOutOfRangeException(nameof(inheritability), SR.ArgumentOutOfRange_HandleInheritabilityNoneOrInheritable);
+            }
+
+            Create(direction, inheritability, bufferSize, pipeSecurity);
+        }
+
         private void Create(PipeDirection direction, HandleInheritability inheritability, int bufferSize)
         {
             Create(direction, inheritability, bufferSize, null);
         }
 
-        // Creates the anonymous pipe. This overload is used in Mono to implement public constructors.
-        private void Create(PipeDirection direction, HandleInheritability inheritability, int bufferSize, PipeSecurity pipeSecurity)
+        private void Create(PipeDirection direction, HandleInheritability inheritability, int bufferSize, PipeSecurity? pipeSecurity)
         {
             Debug.Assert(direction != PipeDirection.InOut, "Anonymous pipe direction shouldn't be InOut");
             Debug.Assert(bufferSize >= 0, "bufferSize is negative");

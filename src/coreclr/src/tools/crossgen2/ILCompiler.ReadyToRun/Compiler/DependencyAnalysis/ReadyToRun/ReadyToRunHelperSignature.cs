@@ -1,10 +1,12 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
 using System;
 using System.Diagnostics;
+
 using Internal.Text;
+using Internal.ReadyToRunConstants;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
@@ -24,7 +26,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         {
             ObjectDataSignatureBuilder builder = new ObjectDataSignatureBuilder();
             builder.AddSymbol(this);
-            builder.EmitByte((byte)ReadyToRunFixupKind.READYTORUN_FIXUP_Helper);
+            builder.EmitByte((byte)ReadyToRunFixupKind.Helper);
             builder.EmitUInt((uint)_helperID);
             return builder.ToObjectData();
         }

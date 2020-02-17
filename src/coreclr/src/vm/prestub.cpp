@@ -72,6 +72,14 @@ void MethodDesc::Init()
 
 #endif
 
+#define LOG_USING_R2R_CODE(method)  LOG((LF_ZAP, LL_INFO10000,                                                            \
+                                        "ZAP: Using R2R precompiled code" FMT_ADDR " for %s.%s sig=\"%s\" (token %x).\n", \
+                                        DBG_ADDR(pCode),                                                                  \
+                                        m_pszDebugClassName,                                                              \
+                                        m_pszDebugMethodName,                                                             \
+                                        m_pszDebugMethodSignature,                                                        \
+                                        GetMemberDef()));
+
 //==========================================================================
 
 PCODE MethodDesc::DoBackpatch(MethodTable * pMT, MethodTable *pDispatchingMT, BOOL fFullBackPatch)
@@ -313,7 +321,7 @@ PCODE MethodDesc::PrepareInitialCode()
     PrepareCodeConfig config(NativeCodeVersion(this), TRUE, TRUE);
     PCODE pCode = PrepareCode(&config);
 
-#if defined(FEATURE_GDBJIT) && defined(FEATURE_PAL) && !defined(CROSSGEN_COMPILE)
+#if defined(FEATURE_GDBJIT) && defined(TARGET_UNIX) && !defined(CROSSGEN_COMPILE)
     NotifyGdb::MethodPrepared(this);
 #endif
 
@@ -352,30 +360,27 @@ PCODE MethodDesc::PrepareILBasedCode(PrepareCodeConfig* pConfig)
     if (pConfig->MayUsePrecompiledCode())
     {
 #ifdef FEATURE_READYTORUN
-        // TODO: Remove IsSystem check when IL Stubs are fixed to be non-shared
-        if (this->IsDynamicMethod() && GetLoaderModule()->IsSystem() && MayUsePrecompiledILStub())
+        if (IsDynamicMethod() && GetLoaderModule()->IsSystem() && MayUsePrecompiledILStub())
         {
-            DynamicMethodDesc *stubMethodDesc = this->AsDynamicMethodDesc();
-            if (stubMethodDesc->IsILStub() && stubMethodDesc->IsPInvokeStub())
+            // Images produced using crossgen2 have non-shareable pinvoke stubs which can't be used with the IL
+            // stubs that the runtime generates (they take no secret parameter, and each pinvoke has a separate code)
+            if (GetModule()->IsReadyToRun() && !GetModule()->GetReadyToRunInfo()->HasNonShareablePInvokeStubs())
             {
-                ILStubResolver *pStubResolver = stubMethodDesc->GetILStubResolver();
-                if (pStubResolver->IsCLRToNativeInteropStub())
+                DynamicMethodDesc* stubMethodDesc = this->AsDynamicMethodDesc();
+                if (stubMethodDesc->IsILStub() && stubMethodDesc->IsPInvokeStub())
                 {
-                    MethodDesc *pTargetMD = stubMethodDesc->GetILStubResolver()->GetStubTargetMethodDesc();
-                    if (pTargetMD != NULL)
+                    ILStubResolver* pStubResolver = stubMethodDesc->GetILStubResolver();
+                    if (pStubResolver->IsCLRToNativeInteropStub())
                     {
-                        pCode = pTargetMD->GetPrecompiledR2RCode(pConfig);
-                        if (pCode != NULL)
+                        MethodDesc* pTargetMD = stubMethodDesc->GetILStubResolver()->GetStubTargetMethodDesc();
+                        if (pTargetMD != NULL)
                         {
-                            LOG((LF_ZAP, LL_INFO10000,
-                                "ZAP: Using R2R precompiled code" FMT_ADDR " for %s.%s sig=\"%s\" (token %x).\n",
-                                DBG_ADDR(pCode),
-                                m_pszDebugClassName,
-                                m_pszDebugMethodName,
-                                m_pszDebugMethodSignature,
-                                GetMemberDef()));
-
-                            pConfig->SetNativeCode(pCode, &pCode);
+                            pCode = pTargetMD->GetPrecompiledR2RCode(pConfig);
+                            if (pCode != NULL)
+                            {
+                                LOG_USING_R2R_CODE(this);
+                                pConfig->SetNativeCode(pCode, &pCode);
+                            }
                         }
                     }
                 }
@@ -430,13 +435,7 @@ PCODE MethodDesc::GetPrecompiledCode(PrepareCodeConfig* pConfig)
         pCode = GetPrecompiledR2RCode(pConfig);
         if (pCode != NULL)
         {
-            LOG((LF_ZAP, LL_INFO10000,
-                    "ZAP: Using R2R precompiled code" FMT_ADDR " for %s.%s sig=\"%s\" (token %x).\n",
-                    DBG_ADDR(pCode),
-                    m_pszDebugClassName,
-                    m_pszDebugMethodName,
-                    m_pszDebugMethodSignature,
-                    GetMemberDef()));
+            LOG_USING_R2R_CODE(this);
 
             if (pConfig->SetNativeCode(pCode, &pCode))
             {
@@ -1371,7 +1370,7 @@ PrepareCodeConfigBuffer::PrepareCodeConfigBuffer(NativeCodeVersion codeVersion)
 
 #endif //FEATURE_CODE_VERSIONING
 
-#ifdef FEATURE_STUBS_AS_IL
+#ifdef FEATURE_INSTANTIATINGSTUB_AS_IL
 
 // CreateInstantiatingILStubTargetSig:
 // This method is used to create the signature of the target of the ILStub
@@ -1398,10 +1397,10 @@ void CreateInstantiatingILStubTargetSig(MethodDesc *pBaseMD,
     SigPointer pReturn = msig.GetReturnProps();
     pReturn.ConvertToInternalExactlyOne(msig.GetModule(), &typeContext, stubSigBuilder);
 
-#ifndef _TARGET_X86_
+#ifndef TARGET_X86
     // The hidden context parameter
     stubSigBuilder->AppendElementType(ELEMENT_TYPE_I);
-#endif // !_TARGET_X86_
+#endif // !TARGET_X86
 
     // Copy rest of the arguments
     msig.NextArg();
@@ -1411,10 +1410,10 @@ void CreateInstantiatingILStubTargetSig(MethodDesc *pBaseMD,
         pArgs.ConvertToInternalExactlyOne(msig.GetModule(), &typeContext, stubSigBuilder);
     }
 
-#ifdef _TARGET_X86_
+#ifdef TARGET_X86
     // The hidden context parameter
     stubSigBuilder->AppendElementType(ELEMENT_TYPE_I);
-#endif // _TARGET_X86_
+#endif // TARGET_X86
 }
 
 Stub * CreateUnboxingILStubForSharedGenericValueTypeMethods(MethodDesc* pTargetMD)
@@ -1458,7 +1457,7 @@ Stub * CreateUnboxingILStubForSharedGenericValueTypeMethods(MethodDesc* pTargetM
     pCode->EmitLoadThis();
     pCode->EmitLDFLDA(tokRawData);
 
-#if defined(_TARGET_X86_)
+#if defined(TARGET_X86)
     // 2.2 Push the rest of the arguments for x86
     for (unsigned i = 0; i < msig.NumFixedArgs();i++)
     {
@@ -1474,7 +1473,7 @@ Stub * CreateUnboxingILStubForSharedGenericValueTypeMethods(MethodDesc* pTargetM
     pCode->EmitSUB();
     pCode->EmitLDIND_I();
 
-#if !defined(_TARGET_X86_)
+#if !defined(TARGET_X86)
     // 2.4 Push the rest of the arguments for not x86
     for (unsigned i = 0; i < msig.NumFixedArgs();i++)
     {
@@ -1564,25 +1563,25 @@ Stub * CreateInstantiatingILStub(MethodDesc* pTargetMD, void* pHiddenArg)
         pCode->EmitLoadThis();
     }
 
-#if defined(_TARGET_X86_)
+#if defined(TARGET_X86)
     // 2.2 Push the rest of the arguments for x86
     for (unsigned i = 0; i < msig.NumFixedArgs();i++)
     {
         pCode->EmitLDARG(i);
     }
-#endif // _TARGET_X86_
+#endif // TARGET_X86
 
     // 2.3 Push the hidden context param
     // InstantiatingStub
     pCode->EmitLDC((TADDR)pHiddenArg);
 
-#if !defined(_TARGET_X86_)
+#if !defined(TARGET_X86)
     // 2.4 Push the rest of the arguments for not x86
     for (unsigned i = 0; i < msig.NumFixedArgs();i++)
     {
         pCode->EmitLDARG(i);
     }
-#endif // !_TARGET_X86_
+#endif // !TARGET_X86
 
     // 2.5 Push the target address
     pCode->EmitLDC((TADDR)pTargetMD->GetMultiCallableAddrOfCode(CORINFO_ACCESS_ANY));
@@ -1633,17 +1632,57 @@ Stub * MakeUnboxingStubWorker(MethodDesc *pMD)
 
     _ASSERTE(pUnboxedMD != NULL && pUnboxedMD != pMD);
 
-#ifdef FEATURE_STUBS_AS_IL
-    if (pUnboxedMD->RequiresInstMethodTableArg())
+#ifdef FEATURE_PORTABLE_SHUFFLE_THUNKS
+    StackSArray<ShuffleEntry> portableShuffle;
+    BOOL usePortableShuffle = FALSE;
+    if (!pUnboxedMD->RequiresInstMethodTableArg())
     {
-        pstub = CreateUnboxingILStubForSharedGenericValueTypeMethods(pUnboxedMD);
+        ShuffleEntry entry;
+        entry.srcofs = ShuffleEntry::SENTINEL;
+        entry.dstofs = 0;
+        portableShuffle.Append(entry);
+        usePortableShuffle = TRUE;
+    }
+    else
+    {
+        usePortableShuffle = GenerateShuffleArrayPortable(pMD, pUnboxedMD, &portableShuffle, ShuffleComputationType::InstantiatingStub);
+    }
+
+    if (usePortableShuffle)
+    {
+        CPUSTUBLINKER sl;
+        _ASSERTE(pUnboxedMD != NULL && pUnboxedMD != pMD);
+
+        // The shuffle for an unboxing stub of a method that doesn't capture the 
+        // type of the this pointer must be a no-op
+        _ASSERTE(pUnboxedMD->RequiresInstMethodTableArg() || (portableShuffle.GetCount() == 1)); 
+
+        sl.EmitComputedInstantiatingMethodStub(pUnboxedMD, &portableShuffle[0], NULL);
+
+        pstub = sl.Link(pMD->GetLoaderAllocator()->GetStubHeap());
     }
     else
 #endif
     {
-        CPUSTUBLINKER sl;
-        sl.EmitUnboxMethodStub(pUnboxedMD);
-        pstub = sl.Link(pMD->GetLoaderAllocator()->GetStubHeap());
+#ifdef FEATURE_INSTANTIATINGSTUB_AS_IL
+#ifndef FEATURE_PORTABLE_SHUFFLE_THUNKS
+        if (pUnboxedMD->RequiresInstMethodTableArg())
+#endif // !FEATURE_PORTABLE_SHUFFLE_THUNKS
+        {
+            _ASSERTE(pUnboxedMD->RequiresInstMethodTableArg());
+            pstub = CreateUnboxingILStubForSharedGenericValueTypeMethods(pUnboxedMD);
+        }
+#ifndef FEATURE_PORTABLE_SHUFFLE_THUNKS
+        else
+#endif // !FEATURE_PORTABLE_SHUFFLE_THUNKS
+#endif // FEATURE_INSTANTIATINGSTUB_AS_IL
+#ifndef FEATURE_PORTABLE_SHUFFLE_THUNKS
+        {
+            CPUSTUBLINKER sl;
+            sl.EmitUnboxMethodStub(pUnboxedMD);
+            pstub = sl.Link(pMD->GetLoaderAllocator()->GetStubHeap());
+        }
+#endif // !FEATURE_PORTABLE_SHUFFLE_THUNKS
     }
     RETURN pstub;
 }
@@ -1685,21 +1724,35 @@ Stub * MakeInstantiatingStubWorker(MethodDesc *pMD)
     }
     Stub *pstub = NULL;
 
-#ifdef FEATURE_STUBS_AS_IL
-    pstub = CreateInstantiatingILStub(pSharedMD, extraArg);
-#else
-    CPUSTUBLINKER sl;
-    _ASSERTE(pSharedMD != NULL && pSharedMD != pMD);
-    sl.EmitInstantiatingMethodStub(pSharedMD, extraArg);
+#ifdef FEATURE_PORTABLE_SHUFFLE_THUNKS
+    StackSArray<ShuffleEntry> portableShuffle;
+    if (GenerateShuffleArrayPortable(pMD, pSharedMD, &portableShuffle, ShuffleComputationType::InstantiatingStub))
+    {
+        CPUSTUBLINKER sl;
+        _ASSERTE(pSharedMD != NULL && pSharedMD != pMD);
+        sl.EmitComputedInstantiatingMethodStub(pSharedMD, &portableShuffle[0], extraArg);
 
-    pstub = sl.Link(pMD->GetLoaderAllocator()->GetStubHeap());
+        pstub = sl.Link(pMD->GetLoaderAllocator()->GetStubHeap());
+    }
+    else
 #endif
+    {
+#ifdef FEATURE_INSTANTIATINGSTUB_AS_IL
+        pstub = CreateInstantiatingILStub(pSharedMD, extraArg);
+#else
+        CPUSTUBLINKER sl;
+        _ASSERTE(pSharedMD != NULL && pSharedMD != pMD);
+        sl.EmitInstantiatingMethodStub(pSharedMD, extraArg);
+
+        pstub = sl.Link(pMD->GetLoaderAllocator()->GetStubHeap());
+#endif
+    }
 
     RETURN pstub;
 }
 #endif // defined(FEATURE_SHARE_GENERIC_CODE)
 
-#if defined (HAS_COMPACT_ENTRYPOINTS) && defined (_TARGET_ARM_)
+#if defined (HAS_COMPACT_ENTRYPOINTS) && defined (TARGET_ARM)
 
 extern "C" MethodDesc * STDCALL PreStubGetMethodDescForCompactEntryPoint (PCODE pCode)
 {
@@ -1712,7 +1765,7 @@ extern "C" MethodDesc * STDCALL PreStubGetMethodDescForCompactEntryPoint (PCODE 
     return MethodDescChunk::GetMethodDescFromCompactEntryPoint(pCode, FALSE);
 }
 
-#endif // defined (HAS_COMPACT_ENTRYPOINTS) && defined (_TARGET_ARM_)
+#endif // defined (HAS_COMPACT_ENTRYPOINTS) && defined (TARGET_ARM)
 
 //=============================================================================
 // This function generates the real code for a method and installs it into
@@ -2025,7 +2078,21 @@ PCODE MethodDesc::DoPrestub(MethodTable *pDispatchingMT)
     } // end else if (IsIL() || IsNoMetadata())
     else if (IsNDirect())
     {
-        pCode = GetStubForInteropMethod(this);
+        if (GetModule()->IsReadyToRun() && GetModule()->GetReadyToRunInfo()->HasNonShareablePInvokeStubs() && MayUsePrecompiledILStub())
+        {
+            // In crossgen2, we compile non-shareable IL stubs for pinvokes. If we can find code for such 
+            // a stub, we'll use it directly instead and avoid emitting an IL stub.
+            PrepareCodeConfig config(NativeCodeVersion(this), TRUE, TRUE);
+            pCode = GetPrecompiledR2RCode(&config);
+            if (pCode != NULL)
+            {
+                LOG_USING_R2R_CODE(this);
+            }
+        }
+
+        if (pCode == NULL)
+            pCode = GetStubForInteropMethod(this);
+
         GetOrCreatePrecode();
     }
     else if (IsFCall())
@@ -2063,7 +2130,7 @@ PCODE MethodDesc::DoPrestub(MethodTable *pDispatchingMT)
     // should have thrown an exception if it couldn't make a stub.
     _ASSERTE((pStub != NULL) ^ (pCode != NULL));
 
-#if defined(_TARGET_X86_) || defined(_TARGET_AMD64_)
+#if defined(TARGET_X86) || defined(TARGET_AMD64)
     //
     // We are seeing memory reordering race around fixups (see DDB 193514 and related bugs). We get into
     // situation where the patched precode is visible by other threads, but the resolved fixups
@@ -2109,9 +2176,9 @@ PCODE MethodDesc::DoPrestub(MethodTable *pDispatchingMT)
 // use the prestub.
 //==========================================================================
 
-#if defined(_TARGET_X86_) && !defined(FEATURE_STUBS_AS_IL)
+#if defined(TARGET_X86) && !defined(FEATURE_STUBS_AS_IL)
 static PCODE g_UMThunkPreStub;
-#endif // _TARGET_X86_ && !FEATURE_STUBS_AS_IL
+#endif // TARGET_X86 && !FEATURE_STUBS_AS_IL
 
 #ifndef DACCESS_COMPILE
 
@@ -2138,9 +2205,9 @@ void InitPreStubManager(void)
         return;
     }
 
-#if defined(_TARGET_X86_) && !defined(FEATURE_STUBS_AS_IL)
+#if defined(TARGET_X86) && !defined(FEATURE_STUBS_AS_IL)
     g_UMThunkPreStub = GenerateUMThunkPrestub()->GetEntryPoint();
-#endif // _TARGET_X86_ && !FEATURE_STUBS_AS_IL
+#endif // TARGET_X86 && !FEATURE_STUBS_AS_IL
 
     ThePreStubManager::Init();
 }
@@ -2149,18 +2216,18 @@ PCODE TheUMThunkPreStub()
 {
     LIMITED_METHOD_CONTRACT;
 
-#if defined(_TARGET_X86_) && !defined(FEATURE_STUBS_AS_IL)
+#if defined(TARGET_X86) && !defined(FEATURE_STUBS_AS_IL)
     return g_UMThunkPreStub;
-#else  // _TARGET_X86_ && !FEATURE_STUBS_AS_IL
+#else  // TARGET_X86 && !FEATURE_STUBS_AS_IL
     return GetEEFuncEntryPoint(TheUMEntryPrestub);
-#endif // _TARGET_X86_ && !FEATURE_STUBS_AS_IL
+#endif // TARGET_X86 && !FEATURE_STUBS_AS_IL
 }
 
 PCODE TheVarargNDirectStub(BOOL hasRetBuffArg)
 {
     LIMITED_METHOD_CONTRACT;
 
-#if !defined(_TARGET_X86_) && !defined(_TARGET_ARM64_)
+#if !defined(TARGET_X86) && !defined(TARGET_ARM64)
     if (hasRetBuffArg)
     {
         return GetEEFuncEntryPoint(VarargPInvokeStub_RetBuffArg);
@@ -2194,7 +2261,7 @@ static PCODE PatchNonVirtualExternalMethod(MethodDesc * pMD, PCODE pCode, PTR_CO
     {
         CORCOMPILE_EXTERNAL_METHOD_THUNK * pThunk = (CORCOMPILE_EXTERNAL_METHOD_THUNK *)pIndirection;
 
-#if defined(_TARGET_X86_) || defined(_TARGET_AMD64_)
+#if defined(TARGET_X86) || defined(TARGET_AMD64)
         INT64 oldValue = *(INT64*)pThunk;
         BYTE* pOldValue = (BYTE*)&oldValue;
 
@@ -2211,11 +2278,11 @@ static PCODE PatchNonVirtualExternalMethod(MethodDesc * pMD, PCODE pCode, PTR_CO
 
             FlushInstructionCache(GetCurrentProcess(), pThunk, 8);
         }
-#elif  defined(_TARGET_ARM_) || defined(_TARGET_ARM64_)
+#elif  defined(TARGET_ARM) || defined(TARGET_ARM64)
         // Patchup the thunk to point to the actual implementation of the cross module external method
         pThunk->m_pTarget = pCode;
 
-        #if defined(_TARGET_ARM_)
+        #if defined(TARGET_ARM)
         // ThumbBit must be set on the target address
         _ASSERTE(pCode & THUMB_CODE);
         #endif
@@ -2278,13 +2345,13 @@ EXTERN_C PCODE STDCALL ExternalMethodFixupWorker(TransitionBlock * pTransitionBl
     FrameWithCookie<ExternalMethodFrame> frame(pTransitionBlock);
     ExternalMethodFrame * pEMFrame = &frame;
 
-#if defined(_TARGET_X86_) || defined(_TARGET_AMD64_)
+#if defined(TARGET_X86) || defined(TARGET_AMD64)
     // Decode indirection cell from callsite if it is not present
     if (pIndirection == NULL)
     {
         // Asssume that the callsite is call [xxxxxxxx]
         PCODE retAddr = pEMFrame->GetReturnAddress();
-#ifdef _TARGET_X86_
+#ifdef TARGET_X86
         pIndirection = *(((TADDR *)retAddr) - 1);
 #else
         pIndirection = *(((INT32 *)retAddr) - 1) + retAddr;
@@ -2559,7 +2626,7 @@ EXTERN_C PCODE STDCALL ExternalMethodFixupWorker(TransitionBlock * pTransitionBl
 }
 
 
-#if !defined(_TARGET_X86_) && !defined(_TARGET_AMD64_) && defined(FEATURE_PREJIT)
+#if !defined(TARGET_X86) && !defined(TARGET_AMD64) && defined(FEATURE_PREJIT)
 
 //==========================================================================================
 // In NGen image, virtual slots inherited from cross-module dependencies point to jump thunks.
@@ -2609,13 +2676,13 @@ EXTERN_C PCODE VirtualMethodFixupWorker(Object * pThisPtr,  CORCOMPILE_VIRTUAL_I
         // Patch the thunk to the actual method body
         pThunk->m_pTarget = pCode;
     }
-#if defined(_TARGET_ARM_)
+#if defined(TARGET_ARM)
     // The target address should have the thumb bit set
     _ASSERTE(pCode & THUMB_CODE);
 #endif
     return pCode;
 }
-#endif // !defined(_TARGET_X86_) && !defined(_TARGET_AMD64_) && defined(FEATURE_PREJIT)
+#endif // !defined(TARGET_X86) && !defined(TARGET_AMD64) && defined(FEATURE_PREJIT)
 
 #ifdef FEATURE_READYTORUN
 
@@ -2784,7 +2851,7 @@ static PCODE getHelperForStaticBase(Module * pModule, CORCOMPILE_FIXUP_BLOB_KIND
 TADDR GetFirstArgumentRegisterValuePtr(TransitionBlock * pTransitionBlock)
 {
     TADDR pArgument = (TADDR)pTransitionBlock + TransitionBlock::GetOffsetOfArgumentRegisters();
-#ifdef _TARGET_X86_
+#ifdef TARGET_X86
     // x86 is special as always
     pArgument += offsetof(ArgumentRegisters, ECX);
 #endif
@@ -3174,8 +3241,7 @@ PCODE DynamicHelperFixup(TransitionBlock * pTransitionBlock, TADDR * pCell, DWOR
         case ENCODE_NEW_ARRAY_HELPER:
             {
                 CorInfoHelpFunc helpFunc = CEEInfo::getNewArrHelperStatic(th);
-                ArrayTypeDesc *pArrayTypeDesc = th.AsArray();
-                MethodTable *pArrayMT = pArrayTypeDesc->GetTemplateMethodTable();
+                MethodTable *pArrayMT = th.AsMethodTable();
                 pHelper = DynamicHelpers::CreateHelperArgMove(pModule->GetLoaderAllocator(), dac_cast<TADDR>(pArrayMT), CEEJitInfo::getHelperFtnStatic(helpFunc));
             }
             break;
@@ -3210,7 +3276,7 @@ PCODE DynamicHelperFixup(TransitionBlock * pTransitionBlock, TADDR * pCell, DWOR
 
                     if (ctorData.pArg4 != NULL || ctorData.pArg5 != NULL)
                     {
-                        // This should never happen - we should never get collectible or secure delegates here
+                        // This should never happen - we should never get collectible or wrapper delegates here
                         _ASSERTE(false);
                         pDelegateCtor = NULL;
                     }
@@ -3288,13 +3354,13 @@ extern "C" SIZE_T STDCALL DynamicHelperWorker(TransitionBlock * pTransitionBlock
     INSTALL_MANAGED_EXCEPTION_DISPATCHER;
     INSTALL_UNWIND_AND_CONTINUE_HANDLER;
 
-#if defined(_TARGET_X86_) || defined(_TARGET_AMD64_)
+#if defined(TARGET_X86) || defined(TARGET_AMD64)
     // Decode indirection cell from callsite if it is not present
     if (pCell == NULL)
     {
         // Asssume that the callsite is call [xxxxxxxx]
         PCODE retAddr = pFrame->GetReturnAddress();
-#ifdef _TARGET_X86_
+#ifdef TARGET_X86
         pCell = *(((TADDR **)retAddr) - 1);
 #else
         pCell = (TADDR *)(*(((INT32 *)retAddr) - 1) + retAddr);

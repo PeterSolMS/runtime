@@ -95,41 +95,8 @@ namespace System
             {
                 return (component == (UriComponents)0) ? UriHelper.IsGenDelim(ch) : false;
             }
-            else if (UriParser.DontEnableStrictRFC3986ReservedCharacterSets)
-            {
-                // Since we aren't enabling strict RFC 3986 reserved sets, we stick with the old behavior
-                // (for app-compat) which was a broken mix of RFCs 2396 and 3986.
-                switch (component)
-                {
-                    case UriComponents.UserInfo:
-                        if (ch == '/' || ch == '?' || ch == '#' || ch == '[' || ch == ']' || ch == '@')
-                            return true;
-                        break;
-                    case UriComponents.Host:
-                        if (ch == ':' || ch == '/' || ch == '?' || ch == '#' || ch == '[' || ch == ']' || ch == '@')
-                            return true;
-                        break;
-                    case UriComponents.Path:
-                        if (ch == '/' || ch == '?' || ch == '#' || ch == '[' || ch == ']')
-                            return true;
-                        break;
-                    case UriComponents.Query:
-                        if (ch == '#' || ch == '[' || ch == ']')
-                            return true;
-                        break;
-                    case UriComponents.Fragment:
-                        if (ch == '#' || ch == '[' || ch == ']')
-                            return true;
-                        break;
-                    default:
-                        break;
-                }
-                return false;
-            }
-            else
-            {
-                return (UriHelper.RFC3986ReservedMarks.IndexOf(ch) >= 0);
-            }
+
+            return UriHelper.RFC3986ReservedMarks.IndexOf(ch) >= 0;
         }
 
         //
@@ -142,19 +109,13 @@ namespace System
             ValueStringBuilder dest = new ValueStringBuilder(size);
             byte[]? bytes = null;
 
-            const int percentEncodingLen = 3; // Escaped UTF-8 will take 3 chars: %AB.
-            int bufferRemaining = 0;
-
             int next = start;
             char ch;
-            bool escape = false;
-            bool surrogatePair = false;
+
+            Span<byte> maxUtf8EncodedSpan = stackalloc byte[4];
 
             for (; next < end; ++next)
             {
-                escape = false;
-                surrogatePair = false;
-
                 if ((ch = pInput[next]) == '%')
                 {
                     if (next + 2 < end)
@@ -259,59 +220,59 @@ namespace System
                 {
                     // unicode
 
-                    char ch2;
+                    bool escape;
+                    bool surrogatePair = false;
+
+                    char ch2 = '\0';
 
                     if ((char.IsHighSurrogate(ch)) && (next + 1 < end))
                     {
                         ch2 = pInput[next + 1];
                         escape = !CheckIriUnicodeRange(ch, ch2, ref surrogatePair, component == UriComponents.Query);
-                        if (!escape)
+                    }
+                    else
+                    {
+                        escape = !CheckIriUnicodeRange(ch, component == UriComponents.Query);
+                    }
+
+                    if (escape)
+                    {
+                        Rune rune;
+                        if (surrogatePair)
                         {
-                            // copy the two chars
-                            dest.Append(pInput[next++]);
-                            dest.Append(pInput[next]);
+                            rune = new Rune(ch, ch2);
+                        }
+                        else if (!Rune.TryCreate(ch, out rune))
+                        {
+                            rune = Rune.ReplacementChar;
+                        }
+
+                        int bytesWritten = rune.EncodeToUtf8(maxUtf8EncodedSpan);
+                        Span<byte> encodedBytes = maxUtf8EncodedSpan.Slice(0, bytesWritten);
+
+                        foreach (byte b in encodedBytes)
+                        {
+                            UriHelper.EscapeAsciiChar(b, ref dest);
                         }
                     }
                     else
                     {
-                        if (CheckIriUnicodeRange(ch, component == UriComponents.Query))
+                        dest.Append(ch);
+                        if (surrogatePair)
                         {
-                            if (!UriHelper.IsBidiControlCharacter(ch) || !UriParser.DontKeepUnicodeBidiFormattingCharacters)
-                            {
-                                // copy it
-                                dest.Append(pInput[next]);
-                            }
+                            dest.Append(ch2);
                         }
-                        else
-                        {
-                            // escape it
-                            escape = true;
-                        }
+                    }
+
+                    if (surrogatePair)
+                    {
+                        next++;
                     }
                 }
                 else
                 {
                     // just copy the character
                     dest.Append(pInput[next]);
-                }
-
-                if (escape)
-                {
-                    const int MaxNumberOfBytesEncoded = 4;
-
-                    byte[] encodedBytes = new byte[MaxNumberOfBytesEncoded];
-                    fixed (byte* pEncodedBytes = &encodedBytes[0])
-                    {
-                        int encodedBytesCount = Encoding.UTF8.GetBytes(pInput + next, surrogatePair ? 2 : 1, pEncodedBytes, MaxNumberOfBytesEncoded);
-                        Debug.Assert(encodedBytesCount <= MaxNumberOfBytesEncoded, "UTF8 encoder should not exceed specified byteCount");
-
-                        bufferRemaining -= encodedBytesCount * percentEncodingLen;
-
-                        for (int count = 0; count < encodedBytesCount; ++count)
-                        {
-                            UriHelper.EscapeAsciiChar((char)encodedBytes[count], ref dest);
-                        }
-                    }
                 }
             }
 

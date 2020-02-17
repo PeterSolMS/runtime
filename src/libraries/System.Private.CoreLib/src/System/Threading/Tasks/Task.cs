@@ -729,21 +729,15 @@ namespace System.Threading.Tasks
 
             if (enabled)
             {
-                // Atomically set the END_AWAIT_NOTIFICATION bit
+                // Atomically set the TASK_STATE_WAIT_COMPLETION_NOTIFICATION bit
                 bool success = AtomicStateUpdate(TASK_STATE_WAIT_COMPLETION_NOTIFICATION,
                                   TASK_STATE_COMPLETED_MASK | TASK_STATE_COMPLETION_RESERVED);
                 Debug.Assert(success, "Tried to set enabled on completed Task");
             }
             else
             {
-                // Atomically clear the END_AWAIT_NOTIFICATION bit
-                int flags = m_stateFlags;
-                while (true)
-                {
-                    int oldFlags = Interlocked.CompareExchange(ref m_stateFlags, flags & (~TASK_STATE_WAIT_COMPLETION_NOTIFICATION), flags);
-                    if (oldFlags == flags) break;
-                    flags = oldFlags;
-                }
+                // Atomically clear the TASK_STATE_WAIT_COMPLETION_NOTIFICATION bit
+                Interlocked.And(ref m_stateFlags, ~TASK_STATE_WAIT_COMPLETION_NOTIFICATION);
             }
         }
 
@@ -4229,6 +4223,7 @@ namespace System.Threading.Tasks
         /// <param name="continuationTask">The continuation task itself.</param>
         /// <param name="scheduler">TaskScheduler with which to associate continuation task.</param>
         /// <param name="options">Restrictions on when the continuation becomes active.</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
         internal void ContinueWithCore(Task continuationTask,
                                        TaskScheduler scheduler,
                                        CancellationToken cancellationToken,

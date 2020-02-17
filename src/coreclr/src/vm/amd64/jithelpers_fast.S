@@ -217,7 +217,7 @@ LEAF_ENTRY JIT_WriteBarrier, _TEXT
         REPRET
 #endif
 
-    // make sure this guy is bigger than any of the other guys
+    // make sure this is bigger than any of the others 
     .balign 16
         nop
 LEAF_END_MARKED JIT_WriteBarrier, _TEXT
@@ -550,7 +550,7 @@ LEAF_END JIT_Stelem_Ref__ArrayStoreCheck_Helper, _TEXT
 
 #define PAGE_SIZE 0x1000
 
-NESTED_ENTRY JIT_StackProbe, _TEXT, NoHandler
+LEAF_ENTRY JIT_StackProbe, _TEXT
         // On entry:
         //   r11 - points to the lowest address on the stack frame being allocated (i.e. [InitialSp - FrameSize])
         //   rsp - points to some byte on the last probed page
@@ -577,4 +577,4 @@ LOCAL_LABEL(ProbeLoop):
         RESET_FRAME_WITH_RBP
         ret
 
-NESTED_END JIT_StackProbe, _TEXT
+LEAF_END_MARKED JIT_StackProbe, _TEXT

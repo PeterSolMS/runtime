@@ -2,10 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using Microsoft.Win32.SafeHandles;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Security;
+using Microsoft.Win32.SafeHandles;
 
 namespace System.IO.Pipes
 {
@@ -14,13 +13,11 @@ namespace System.IO.Pipes
     /// </summary>
     public sealed partial class AnonymousPipeClientStream : PipeStream
     {
-        [SuppressMessage("Microsoft.Naming", "CA1720:IdentifiersShouldNotContainTypeNames", MessageId = "string", Justification = "By design")]
         public AnonymousPipeClientStream(string pipeHandleAsString)
             : this(PipeDirection.In, pipeHandleAsString)
         {
         }
 
-        [SuppressMessage("Microsoft.Naming", "CA1720:IdentifiersShouldNotContainTypeNames", MessageId = "string", Justification = "By design")]
         public AnonymousPipeClientStream(PipeDirection direction, string pipeHandleAsString)
             : base(direction, 0)
         {

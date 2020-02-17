@@ -15,11 +15,11 @@ namespace System.Text.RegularExpressions.Tests
     {
         public static IEnumerable<object[]> Ctor_TestData()
         {
-            yield return new object[] { "foo", RegexOptions.None, Timeout.InfiniteTimeSpan };
-            yield return new object[] { "foo", RegexOptions.RightToLeft, Timeout.InfiniteTimeSpan };
-            yield return new object[] { "foo", RegexOptions.Compiled, Timeout.InfiniteTimeSpan };
-            yield return new object[] { "foo", RegexOptions.ECMAScript | RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant, Timeout.InfiniteTimeSpan };
-            yield return new object[] { "foo", RegexOptions.ECMAScript | RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled, Timeout.InfiniteTimeSpan };
+            yield return new object[] { "foo", RegexOptions.None, Regex.InfiniteMatchTimeout };
+            yield return new object[] { "foo", RegexOptions.RightToLeft, Regex.InfiniteMatchTimeout };
+            yield return new object[] { "foo", RegexOptions.Compiled, Regex.InfiniteMatchTimeout };
+            yield return new object[] { "foo", RegexOptions.ECMAScript | RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant, Regex.InfiniteMatchTimeout };
+            yield return new object[] { "foo", RegexOptions.ECMAScript | RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled, Regex.InfiniteMatchTimeout };
             yield return new object[] { "foo", RegexOptions.None, new TimeSpan(1) };
             yield return new object[] { "foo", RegexOptions.None, TimeSpan.FromMilliseconds(int.MaxValue - 1) };
         }
@@ -28,7 +28,7 @@ namespace System.Text.RegularExpressions.Tests
         [MemberData(nameof(Ctor_TestData))]
         public static void Ctor(string pattern, RegexOptions options, TimeSpan matchTimeout)
         {
-            if (matchTimeout == Timeout.InfiniteTimeSpan)
+            if (matchTimeout == Regex.InfiniteMatchTimeout)
             {
                 if (options == RegexOptions.None)
                 {
@@ -49,6 +49,22 @@ namespace System.Text.RegularExpressions.Tests
             Assert.Equal(options, regex3.Options);
             Assert.Equal((options & RegexOptions.RightToLeft) != 0, regex3.RightToLeft);
             Assert.Equal(matchTimeout, regex3.MatchTimeout);
+        }
+
+        [Theory]
+        [InlineData(RegexOptions.None)]
+        [InlineData(RegexOptions.Compiled)]
+        public void CtorDebugInvoke(RegexOptions options)
+        {
+            Regex r;
+
+            r = new Regex("[abc]def(ghi|jkl)", options | (RegexOptions)0x80 /*RegexOptions.Debug*/);
+            Assert.False(r.Match("a").Success);
+            Assert.True(r.Match("adefghi").Success);
+
+            r = new Regex("(ghi|jkl)*ghi", options | (RegexOptions)0x80 /*RegexOptions.Debug*/);
+            Assert.False(r.Match("jkl").Success);
+            Assert.True(r.Match("ghi").Success);
         }
 
         [Fact]
@@ -95,6 +111,19 @@ namespace System.Text.RegularExpressions.Tests
                 AppDomain.CurrentDomain.SetData(RegexHelpers.DefaultMatchTimeout_ConfigKeyName, TimeSpan.Zero);
                 Assert.Throws<TypeInitializationException>(() => Regex.InfiniteMatchTimeout);
             }).Dispose();
+        }
+
+        [Fact]
+        public void InitializeReferences_OnlyInvokedOnce()
+        {
+            var r = new DerivedRegex();
+            r.InitializeReferences();
+            Assert.Throws<NotSupportedException>(() => r.InitializeReferences());
+        }
+
+        private sealed class DerivedRegex : Regex
+        {
+            public new void InitializeReferences() => base.InitializeReferences();
         }
     }
 }

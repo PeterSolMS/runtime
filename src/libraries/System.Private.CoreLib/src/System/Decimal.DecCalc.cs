@@ -249,7 +249,7 @@ namespace System
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private static bool Div96ByConst(ref ulong high64, ref uint low, uint pow)
             {
-#if BIT64
+#if TARGET_64BIT
                 ulong div64 = high64 / pow;
                 uint div = (uint)((((high64 - div64 * pow) << 32) + low) / pow);
                 if (low == div * pow)
@@ -323,7 +323,7 @@ namespace System
                 // Since 10 = 2 * 5, there must be a factor of 2 for every power of 10 we can extract.
                 // We use this as a quick test on whether to try a given power.
 
-#if BIT64
+#if TARGET_64BIT
                 while ((byte)low == 0 && scale >= 8 && Div96ByConst(ref high64, ref low, 100000000))
                     scale -= 8;
 
@@ -613,7 +613,7 @@ PosRem:
                             case 4:
                                 power = DivByConst(result, hiRes, out quotient, out remainder, 10000);
                                 break;
-#if BIT64
+#if TARGET_64BIT
                             case 5:
                                 power = DivByConst(result, hiRes, out quotient, out remainder, 100000);
                                 break;
@@ -640,7 +640,7 @@ PosRem:
                         if (quotient == 0 && hiRes != 0)
                             hiRes--;
 
-#if BIT64
+#if TARGET_64BIT
                         newScale -= MaxInt32Scale;
 #else
                         newScale -= 4;
@@ -706,7 +706,7 @@ ThrowOverflow:
                 remainder = high - (quotient = high / power) * power;
                 for (uint i = hiRes - 1; (int)i >= 0; i--)
                 {
-#if BIT64
+#if TARGET_64BIT
                     ulong num = result[i] + ((ulong)remainder << 32);
                     remainder = (uint)num - (result[i] = (uint)(num / power)) * power;
 #else
@@ -874,6 +874,8 @@ ThrowOverflow:
             /// Adds or subtracts two decimal values.
             /// On return, d1 contains the result of the operation and d2 is trashed.
             /// </summary>
+            /// <param name="d1">First decimal to add or subtract.</param>
+            /// <param name="d2">Second decimal to add or subtract.</param>
             /// <param name="sign">True means subtract and false means add.</param>
             internal static unsafe void DecAddSub(ref DecCalc d1, ref DecCalc d2, bool sign)
             {

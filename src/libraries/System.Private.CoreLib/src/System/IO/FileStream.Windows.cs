@@ -127,7 +127,7 @@ namespace System.IO
             try
             {
 #endif
-                InitFromHandleImpl(handle, access, useAsyncIO);
+                InitFromHandleImpl(handle, useAsyncIO);
 #if DEBUG
             }
             catch
@@ -138,7 +138,7 @@ namespace System.IO
 #endif
         }
 
-        private void InitFromHandleImpl(SafeFileHandle handle, FileAccess access, bool useAsyncIO)
+        private void InitFromHandleImpl(SafeFileHandle handle, bool useAsyncIO)
         {
             int handleType = Interop.Kernel32.GetFileType(handle);
             Debug.Assert(handleType == Interop.Kernel32.FileTypes.FILE_TYPE_DISK || handleType == Interop.Kernel32.FileTypes.FILE_TYPE_PIPE || handleType == Interop.Kernel32.FileTypes.FILE_TYPE_CHAR, "FileStream was passed an unknown file type!");
@@ -173,7 +173,7 @@ namespace System.IO
             }
             else if (!useAsyncIO)
             {
-                VerifyHandleIsSync(handle, handleType, access);
+                VerifyHandleIsSync(handle);
             }
 
             if (_canSeek)
@@ -204,7 +204,7 @@ namespace System.IO
         {
             Interop.Kernel32.FILE_STANDARD_INFO info;
 
-            if (!Interop.Kernel32.GetFileInformationByHandleEx(_fileHandle, Interop.Kernel32.FILE_INFO_BY_HANDLE_CLASS.FileStandardInfo, out info, (uint)sizeof(Interop.Kernel32.FILE_STANDARD_INFO)))
+            if (!Interop.Kernel32.GetFileInformationByHandleEx(_fileHandle, Interop.Kernel32.FileStandardInfo, &info, (uint)sizeof(Interop.Kernel32.FILE_STANDARD_INFO)))
                 throw Win32Marshal.GetExceptionForLastWin32Error(_path);
             long len = info.EndOfFile;
 
@@ -709,8 +709,7 @@ namespace System.IO
             // Make sure we are writing to the position that we think we are
             VerifyOSHandlePosition();
 
-            int errorCode = 0;
-            int r = WriteFileNative(_fileHandle, source, null, out errorCode);
+            int r = WriteFileNative(_fileHandle, source, null, out int errorCode);
 
             if (r == -1)
             {
@@ -884,8 +883,7 @@ namespace System.IO
             }
 
             // queue an async ReadFile operation and pass in a packed overlapped
-            int errorCode = 0;
-            int r = ReadFileNative(_fileHandle, destination.Span, intOverlapped, out errorCode);
+            int r = ReadFileNative(_fileHandle, destination.Span, intOverlapped, out int errorCode);
 
             // ReadFile, the OS version, will return 0 on failure.  But
             // my ReadFileNative wrapper returns -1.  My wrapper will return
@@ -1089,9 +1087,8 @@ namespace System.IO
                 SeekCore(_fileHandle, source.Length, SeekOrigin.Current);
             }
 
-            int errorCode = 0;
             // queue an async WriteFile operation and pass in a packed overlapped
-            int r = WriteFileNative(_fileHandle, source.Span, intOverlapped, out errorCode);
+            int r = WriteFileNative(_fileHandle, source.Span, intOverlapped, out int errorCode);
 
             // WriteFile, the OS version, will return 0 on failure.  But
             // my WriteFileNative wrapper returns -1.  My wrapper will return
@@ -1150,11 +1147,6 @@ namespace System.IO
 
             return completionSource.Task;
         }
-
-        // Windows API definitions, from winbase.h and others
-
-        internal const int GENERIC_READ = unchecked((int)0x80000000);
-        private const int GENERIC_WRITE = 0x40000000;
 
         // Error codes (not HRESULTS), from winerror.h
         internal const int ERROR_BROKEN_PIPE = 109;

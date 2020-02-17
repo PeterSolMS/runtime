@@ -1,9 +1,11 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
 using System;
 using System.Collections.Generic;
+
+using Internal.CorConstants;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
@@ -49,7 +51,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             _gcRefMap = _emitGCRefMap ? new GCRefMapNode(this) : null;
         }
 
-        public void MaterializeSignature(ReadyToRunCodegenNodeFactory r2rFactory)
+        public void MaterializeSignature(NodeFactory r2rFactory)
         {
             if (!_materializedSignature)
             {

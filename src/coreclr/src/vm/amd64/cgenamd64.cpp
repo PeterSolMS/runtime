@@ -79,9 +79,6 @@ void TransitionFrame::UpdateRegDisplay(const PREGDISPLAY pRD)
 
 #ifndef DACCESS_COMPILE
 
-extern "C" TADDR s_pStubHelperFrameVPtr;
-TADDR s_pStubHelperFrameVPtr = StubHelperFrame::GetMethodFrameVPtr();
-
 void TailCallFrame::InitFromContext(T_CONTEXT * pContext)
 {
     WRAPPER_NO_CONTRACT;
@@ -206,20 +203,20 @@ void HelperMethodFrame::UpdateRegDisplay(const PREGDISPLAY pRD)
     pRD->pCurrentContext->Rip = pRD->ControlPC = m_MachState.m_Rip;
     pRD->pCurrentContext->Rsp = pRD->SP = m_MachState.m_Rsp;
 
-#ifdef FEATURE_PAL
+#ifdef TARGET_UNIX
 
 #define CALLEE_SAVED_REGISTER(regname) pRD->pCurrentContext->regname = (m_MachState.m_Ptrs.p##regname != NULL) ? \
         *m_MachState.m_Ptrs.p##regname : m_MachState.m_Unwound.regname;
     ENUM_CALLEE_SAVED_REGISTERS();
 #undef CALLEE_SAVED_REGISTER
 
-#else // FEATURE_PAL
+#else // TARGET_UNIX
 
 #define CALLEE_SAVED_REGISTER(regname) pRD->pCurrentContext->regname = *m_MachState.m_Ptrs.p##regname;
     ENUM_CALLEE_SAVED_REGISTERS();
 #undef CALLEE_SAVED_REGISTER
 
-#endif // FEATURE_PAL
+#endif // TARGET_UNIX
 
 #define CALLEE_SAVED_REGISTER(regname) pRD->pCurrentContextPointers->regname = m_MachState.m_Ptrs.p##regname;
     ENUM_CALLEE_SAVED_REGISTERS();

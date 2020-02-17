@@ -74,13 +74,19 @@ public:
         return m_pHeader->Flags & READYTORUN_FLAG_PARTIAL;
     }
 
+    BOOL HasNonShareablePInvokeStubs()
+    {
+        LIMITED_METHOD_CONTRACT;
+        return m_pHeader->Flags & READYTORUN_FLAG_NONSHARED_PINVOKE_STUBS;
+    }
+
     PTR_PEImageLayout GetImage()
     {
         LIMITED_METHOD_CONTRACT;
         return m_pLayout;
     }
 
-    IMAGE_DATA_DIRECTORY * FindSection(DWORD type);
+    IMAGE_DATA_DIRECTORY * FindSection(ReadyToRunSectionType type);
 
     PTR_CORCOMPILE_IMPORT_SECTION GetImportSections(COUNT_T * pCount)
     {
